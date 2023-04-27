@@ -1,7 +1,7 @@
-#ifndef _BINARY_H_
-#define _BINARY_H_
+#ifndef BINARY_H
+#define BINARY_H
 
-typedef enum {false, true} bool;
+#include <stdbool.h>
 
 extern const unsigned char Reflect8[256];
 
@@ -33,4 +33,4 @@ bool cs_isdecdigit(char c);
 unsigned char tohex(unsigned char c);
 unsigned char todecimal(unsigned char c);
 
-#endif /* _BINARY_H_ */
+#endif
