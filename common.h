@@ -39,9 +39,9 @@ extern void PutExtension(char *Flnm, char *Extension);
 
 extern void VerifyChecksumValue(void);
 extern void VerifyRangeFloorCeil(void);
-extern void WriteMemory(void);
 extern void Allocate_Memory_And_Rewind(void);
 extern char *ReadDataBytes(char *p);
+extern void WriteOutFile(void);
 extern void ParseOptions(int argc, char *argv[]);
 
 extern FILE *GetInFile(void);

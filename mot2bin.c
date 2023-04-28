@@ -51,6 +51,7 @@
  */
 #include <string.h>
 #include "common.h"
+#include "checksum.h"
 
 #define PROGRAM "mot2bin"
 #define VERSION "2.5"
@@ -360,6 +361,7 @@ int main(int argc, char *argv[])
     fprintf(stdout, "Pad Byte          = %X\n", GetPadByte());
 
     WriteMemory();
+    WriteOutFile();
 
 #ifdef USE_FILE_BUFFERS
     free(FilinBuf);

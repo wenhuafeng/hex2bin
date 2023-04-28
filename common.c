@@ -35,8 +35,7 @@
 
 #include "binary.h"
 #include "libcrc.h"
-
-#define LAST_CHECK_METHOD 5
+#include "checksum.h"
 
 /* We use buffer to speed disk access. */
 #ifdef USE_FILE_BUFFERS
@@ -51,15 +50,6 @@
 /* We don't accept an option beginning with a '/' because it could be a file name. */
 #define _IS_OPTION_(x) ((x) == '-')
 #endif
-
-typedef enum Crc {
-    CHK8_SUM = 0,
-    CHK16,
-    CRC8,
-    CRC16,
-    CRC32,
-    CHK16_8
-} t_CRC;
 
 char Extension[MAX_EXTENSION_SIZE]; /* filename extension for output files */
 
@@ -79,7 +69,6 @@ unsigned int Record_Nb;
 unsigned int Nb_Bytes;
 
 /* This will hold binary codes translated from hex file. */
-uint8_t *Memory_Block;
 unsigned int Lowest_Address, Highest_Address;
 unsigned int Starting_Address, Phys_Addr;
 unsigned int Records_Start; // Lowest address of the records
@@ -98,22 +87,7 @@ bool Address_Alignment_Word = false;
 bool Batch_Mode = false;
 bool Verbose_Flag = false;
 
-int Endian = 0;
-
-t_CRC Cks_Type = CHK8_SUM;
-unsigned int Cks_Start = 0;
-unsigned int  Cks_End = 0;
-unsigned int  Cks_Addr = 0;
-unsigned int  Cks_Value = 0;
-bool Cks_range_set = false;
-bool Cks_Addr_set = false;
-bool Force_Value = false;
-
-uint16_t Crc_Poly = 0x07;
-uint16_t Crc_Init = 0;
-uint16_t Crc_XorOut = 0;
-bool Crc_RefIn = false;
-bool Crc_RefOut = false;
+//int Endian = 0;
 
 /* procedure USAGE */
 void usage(void)
@@ -169,18 +143,6 @@ static void DisplayCheckMethods(void)
     exit(1);
 }
 
-static void *NoFailMalloc(size_t size)
-{
-    void *result;
-
-    if ((result = malloc(size)) == NULL) {
-        fprintf(stderr, "Can't allocate memory.\n");
-        exit(1);
-    }
-
-    return (result);
-}
-
 /* Open the input file, with error checking */
 void NoFailOpenInputFile(char *Flnm)
 {
@@ -213,8 +175,9 @@ void NoFailOpenOutputFile(char *Flnm)
             /* Failure to open the output file may be
              simply due to an insufficient permission setting. */
             fprintf(stderr, "Output file %s cannot be opened. Enter new file name: ", Flnm);
-            if (Flnm[strlen(Flnm) - 1] == '\n')
+            if (Flnm[strlen(Flnm) - 1] == '\n') {
                 Flnm[strlen(Flnm) - 1] = '\0';
+            }
         }
     }
 
@@ -234,22 +197,6 @@ void GetLine(char *str, FILE *in)
     }
 }
 
-// 0 or 1
-static int GetBin(const char *str)
-{
-    int result;
-    unsigned int value;
-
-    result = sscanf(str, "%u", &value);
-
-    if (result == 1) {
-        return value & 1;
-    } else {
-        fprintf(stderr, "GetBin: some error occurred when parsing options.\n");
-        exit(1);
-    }
-}
-
 #if 0
 static int GetDec(const char *str)
 {
@@ -266,38 +213,6 @@ static int GetDec(const char *str)
     }
 }
 #endif
-
-static int GetHex(const char *str)
-{
-    int result;
-    unsigned int value;
-
-    result = sscanf(str, "%x", &value);
-
-    if (result == 1) {
-        return value;
-    } else {
-        fprintf(stderr, "GetHex: some error occurred when parsing options.\n");
-        exit(1);
-    }
-}
-
-// Char t/T: true f/F: false
-static bool GetBoolean(const char *str)
-{
-    int result;
-    unsigned char value, temp;
-
-    result = sscanf(str, "%c", &value);
-    temp = tolower(value);
-
-    if ((result == 1) && ((temp == 't') || (temp == 'f'))) {
-        return (temp == 't');
-    } else {
-        fprintf(stderr, "GetBoolean: some error occurred when parsing options.\n");
-        exit(1);
-    }
-}
 
 void GetFilename(char *dest, char *src)
 {
@@ -352,250 +267,6 @@ void VerifyRangeFloorCeil(void)
     if (Floor_Address_Setted && Ceiling_Address_Setted && (Floor_Address >= Ceiling_Address)) {
         fprintf(stderr, "Floor address %08X higher than Ceiling address %08X\n", Floor_Address, Ceiling_Address);
         exit(1);
-    }
-}
-
-static void CrcParamsCheck(void)
-{
-    switch (Cks_Type) {
-        case CRC8:
-            Crc_Poly &= 0xFF;
-            Crc_Init &= 0xFF;
-            Crc_XorOut &= 0xFF;
-            break;
-        case CRC16:
-            Crc_Poly &= 0xFFFF;
-            Crc_Init &= 0xFFFF;
-            Crc_XorOut &= 0xFFFF;
-            break;
-        case CRC32:
-            break;
-        default:
-            fprintf(stderr, "See file CRC list.txt for parameters\n");
-            exit(1);
-    }
-}
-
-static void WriteMemBlock16(uint16_t Value)
-{
-    if (Endian == 1) {
-        Memory_Block[Cks_Addr - Lowest_Address] = u16_hi(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 1] = u16_lo(Value);
-    } else {
-        Memory_Block[Cks_Addr - Lowest_Address + 1] = u16_hi(Value);
-        Memory_Block[Cks_Addr - Lowest_Address] = u16_lo(Value);
-    }
-}
-
-static void WriteMemBlock32(uint32_t Value)
-{
-    if (Endian == 1) {
-        Memory_Block[Cks_Addr - Lowest_Address] = u32_b3(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 1] = u32_b2(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 2] = u32_b1(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 3] = u32_b0(Value);
-    } else {
-        Memory_Block[Cks_Addr - Lowest_Address + 3] = u32_b3(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 2] = u32_b2(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 1] = u32_b1(Value);
-        Memory_Block[Cks_Addr - Lowest_Address] = u32_b0(Value);
-    }
-}
-
-void WriteMemory(void)
-{
-    void *crc_table = NULL;
-
-    if ((Cks_Addr >= Lowest_Address) && (Cks_Addr < Highest_Address)) {
-        if (Force_Value) {
-            switch (Cks_Type) {
-                case 0:
-                    Memory_Block[Cks_Addr - Lowest_Address] = Cks_Value;
-                    fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, Cks_Value);
-                    break;
-                case 1:
-                    WriteMemBlock16(Cks_Value);
-                    fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, Cks_Value);
-                    break;
-                case 2:
-                    WriteMemBlock32(Cks_Value);
-                    fprintf(stdout, "Addr %08X set to %08X\n", Cks_Addr, Cks_Value);
-                    break;
-                default:;
-            }
-        } else if (Cks_Addr_set) {
-            /* Add a checksum to the binary file */
-            if (!Cks_range_set) {
-                Cks_Start = Lowest_Address;
-                Cks_End = Highest_Address;
-            }
-            /* checksum range MUST BE in the array bounds */
-
-            if (Cks_Start < Lowest_Address) {
-                fprintf(stdout, "Modifying range start from %X to %X\n", Cks_Start, Lowest_Address);
-                Cks_Start = Lowest_Address;
-            }
-            if (Cks_End > Highest_Address) {
-                fprintf(stdout, "Modifying range end from %X to %X\n", Cks_End, Highest_Address);
-                Cks_End = Highest_Address;
-            }
-
-            switch (Cks_Type) {
-                case CHK8_SUM: {
-                    uint8_t wCKS = 0;
-
-                    for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-                        wCKS += Memory_Block[i - Lowest_Address];
-                    }
-
-                    fprintf(stdout, "8-bit Checksum = %02X\n", wCKS & 0xff);
-                    Memory_Block[Cks_Addr - Lowest_Address] = wCKS;
-                    fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, wCKS);
-                } break;
-
-                case CHK16: {
-                    uint16_t wCKS, w;
-
-                    wCKS = 0;
-
-                    if (Endian == 1) {
-                        for (unsigned int i = Cks_Start; i <= Cks_End; i += 2) {
-                            w = Memory_Block[i - Lowest_Address + 1] | ((uint16_t)Memory_Block[i - Lowest_Address] << 8);
-                            wCKS += w;
-                        }
-                    } else {
-                        for (unsigned int i = Cks_Start; i <= Cks_End; i += 2) {
-                            w = Memory_Block[i - Lowest_Address] | ((uint16_t)Memory_Block[i - Lowest_Address + 1] << 8);
-                            wCKS += w;
-                        }
-                    }
-                    fprintf(stdout, "16-bit Checksum = %04X\n", wCKS);
-                    WriteMemBlock16(wCKS);
-                    fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, wCKS);
-                } break;
-
-                case CHK16_8: {
-                    uint16_t wCKS;
-
-                    wCKS = 0;
-
-                    for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-                        wCKS += Memory_Block[i - Lowest_Address];
-                    }
-
-                    fprintf(stdout, "16-bit Checksum = %04X\n", wCKS);
-                    WriteMemBlock16(wCKS);
-                    fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, wCKS);
-                } break;
-
-                case CRC8: {
-                    uint8_t CRC8;
-                    crc_table = NoFailMalloc(256);
-
-                    if (Crc_RefIn) {
-                        init_crc8_reflected_tab(Reflect8[Crc_Poly]);
-                        CRC8 = Reflect8[Crc_Init];
-                    } else {
-                        init_crc8_normal_tab(Crc_Poly);
-                        CRC8 = Crc_Init;
-                    }
-
-                    for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-                        CRC8 = update_crc8(CRC8, Memory_Block[i - Lowest_Address]);
-                    }
-
-                    CRC8 = (CRC8 ^ Crc_XorOut) & 0xff;
-                    Memory_Block[Cks_Addr - Lowest_Address] = CRC8;
-                    fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, CRC8);
-                } break;
-
-                case CRC16: {
-                    uint16_t CRC16;
-                    crc_table = NoFailMalloc(256 * 2);
-
-                    if (Crc_RefIn) {
-                        init_crc16_reflected_tab(Reflect16(Crc_Poly));
-                        CRC16 = Reflect16(Crc_Init);
-
-                        for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-                            CRC16 = update_crc16_reflected(CRC16, Memory_Block[i - Lowest_Address]);
-                        }
-                    } else {
-                        init_crc16_normal_tab(Crc_Poly);
-                        CRC16 = Crc_Init;
-
-
-                        for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-                            CRC16 = update_crc16_normal(CRC16, Memory_Block[i - Lowest_Address]);
-                        }
-                    }
-
-                    CRC16 = (CRC16 ^ Crc_XorOut) & 0xffff;
-                    WriteMemBlock16(CRC16);
-                    fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, CRC16);
-                } break;
-
-                case CRC32: {
-                    uint32_t CRC32;
-
-                    crc_table = NoFailMalloc(256 * 4);
-                    if (Crc_RefIn) {
-                        init_crc32_reflected_tab(Reflect32(Crc_Poly));
-                        CRC32 = Reflect32(Crc_Init);
-
-                        for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-                            CRC32 = update_crc32_reflected(CRC32, Memory_Block[i - Lowest_Address]);
-                        }
-                    } else {
-                        init_crc32_normal_tab(Crc_Poly);
-                        CRC32 = Crc_Init;
-
-                        for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-                            CRC32 = update_crc32_normal(CRC32, Memory_Block[i - Lowest_Address]);
-                        }
-                    }
-
-                    CRC32 ^= Crc_XorOut;
-                    WriteMemBlock32(CRC32);
-                    fprintf(stdout, "Addr %08X set to %08X\n", Cks_Addr, CRC32);
-                } break;
-
-                default:
-                    break;
-            }
-
-            if (crc_table != NULL) {
-                free(crc_table);
-            }
-        }
-    } else {
-        if (Force_Value || Cks_Addr_set) {
-            fprintf(stderr, "Force/Check address outside of memory range\n");
-        }
-    }
-
-    /* write binary file */
-    fwrite(Memory_Block, Max_Length, 1, Filout);
-
-    free(Memory_Block);
-
-    // Minimum_Block_Size is set; the memory buffer is multiple of this?
-    if (Minimum_Block_Size_Setted == true) {
-        Module = Max_Length % Minimum_Block_Size;
-        if (Module) {
-            Module = Minimum_Block_Size - Module;
-            Memory_Block = (uint8_t *)NoFailMalloc(Module);
-            memset(Memory_Block, Pad_Byte, Module);
-            fwrite(Memory_Block, Module, 1, Filout);
-            free(Memory_Block);
-            if (Max_Length_Setted == true)
-                fprintf(stdout, "Attention Max Length changed by Minimum Block Size\n");
-            // extended
-            Max_Length += Module;
-            Highest_Address += Module;
-            fprintf(stdout, "Extended\nHighest address:  %08X\n", Highest_Address);
-            fprintf(stdout, "Max Length:       %u\n\n", Max_Length);
-        }
     }
 }
 
@@ -667,6 +338,33 @@ char *ReadDataBytes(char *p)
     return p;
 }
 
+void WriteOutFile(void)
+{
+    /* write binary file */
+    fwrite(Memory_Block, Max_Length, 1, Filout);
+
+    free(Memory_Block);
+
+    // Minimum_Block_Size is set; the memory buffer is multiple of this?
+    if (Minimum_Block_Size_Setted == true) {
+        Module = Max_Length % Minimum_Block_Size;
+        if (Module) {
+            Module = Minimum_Block_Size - Module;
+            Memory_Block = (uint8_t *)NoFailMalloc(Module);
+            memset(Memory_Block, Pad_Byte, Module);
+            fwrite(Memory_Block, Module, 1, Filout);
+            free(Memory_Block);
+            if (Max_Length_Setted == true)
+                fprintf(stdout, "Attention Max Length changed by Minimum Block Size\n");
+            // extended
+            Max_Length += Module;
+            Highest_Address += Module;
+            fprintf(stdout, "Extended\nHighest address: %08X\n", Highest_Address);
+            fprintf(stdout, "Max Length: %u\n\n", Max_Length);
+        }
+    }
+}
+
 /*
  * Parse options on the command line
  * variables:
@@ -714,26 +412,19 @@ void ParseOptions(int argc, char *argv[])
                     i = 1; /* add 1 to Param */
                     break;
                 case 'E':
-                    Endian = GetBin(argv[Param + 1]);
+                    Para_E(argv[Param + 1]);
                     i = 1; /* add 1 to Param */
                     break;
                 case 'f':
-                    Cks_Addr = GetHex(argv[Param + 1]);
-                    Cks_Addr_set = true;
+                    Para_f(argv[Param + 1]);
                     i = 1; /* add 1 to Param */
                     break;
                 case 'F':
-                    Cks_Addr = GetHex(argv[Param + 1]);
-                    Cks_Value = GetHex(argv[Param + 2]);
-                    Force_Value = true;
+                    Para_F(argv[Param + 1], argv[Param + 2]);
                     i = 2; /* add 2 to Param */
                     break;
                 case 'k':
-                    Cks_Type = GetHex(argv[Param + 1]);
-                    {
-                        if (Cks_Type > LAST_CHECK_METHOD)
-                            usage();
-                    }
+                    Para_k(argv[Param + 1]);
                     i = 1; /* add 1 to Param */
                     break;
                 case 'l':
@@ -755,9 +446,7 @@ void ParseOptions(int argc, char *argv[])
                     i = 1; /* add 1 to Param */
                     break;
                 case 'r':
-                    Cks_Start = GetHex(argv[Param + 1]);
-                    Cks_End = GetHex(argv[Param + 2]);
-                    Cks_range_set = true;
+                    Para_r(argv[Param + 1], argv[Param + 2]);
                     i = 2; /* add 2 to Param */
                     break;
                 case 's':
@@ -784,12 +473,7 @@ void ParseOptions(int argc, char *argv[])
                     i = 0;
                     break;
                 case 'C':
-                    Crc_Poly = GetHex(argv[Param + 1]);
-                    Crc_Init = GetHex(argv[Param + 2]);
-                    Crc_RefIn = GetBoolean(argv[Param + 3]);
-                    Crc_RefOut = GetBoolean(argv[Param + 4]);
-                    Crc_XorOut = GetHex(argv[Param + 5]);
-                    CrcParamsCheck();
+                    Para_C(argv[Param + 1], argv[Param + 2], argv[Param + 3], argv[Param + 4], argv[Param + 5]);
                     i = 5; /* add 5 to Param */
                     break;
 
@@ -797,7 +481,8 @@ void ParseOptions(int argc, char *argv[])
                 case 'h':
                 default:
                     usage();
-            } /* switch */
+                    break;
+            }
 
             /* Last parameter is not a filename */
             if (Param == argc - 1) {

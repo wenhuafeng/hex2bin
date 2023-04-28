@@ -59,6 +59,7 @@
 
 #include <string.h>
 #include "common.h"
+#include "checksum.h"
 
 #define NO_ADDRESS_TYPE_SELECTED 0
 #define LINEAR_ADDRESS 1
@@ -473,6 +474,7 @@ int main(int argc, char *argv[])
     fprintf(stdout, "Pad Byte          = %X\n", GetPadByte());
 
     WriteMemory();
+    WriteOutFile();
 
 #ifdef USE_FILE_BUFFERS
     free(FilinBuf);
