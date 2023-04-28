@@ -199,3 +199,8 @@ uint32_t update_crc32_reflected(uint32_t crc, char c)
 
     return (crc >> 8) ^ ((uint32_t *)crc_table)[(crc ^ long_c) & 0xff];
 }
+
+void *GetCrcTable(void)
+{
+    return crc_table;
+}

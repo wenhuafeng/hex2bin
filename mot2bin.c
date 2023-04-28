@@ -49,6 +49,7 @@
  * 20150221 JP: rewrite of the checksum write/force value
  * 20150804 JP: added batch file option
  */
+#include <string.h>
 #include "common.h"
 
 #define PROGRAM "mot2bin"
@@ -76,7 +77,12 @@ int main(int argc, char *argv[])
     unsigned int temp;
     unsigned int Record_Count, Record_Checksum;
 
-    byte Data_Str[MAX_LINE_SIZE];
+    uint8_t Data_Str[MAX_LINE_SIZE];
+    FILE *fileIn = NULL;
+//    FILE *fileOut = NULL;
+
+    char Extension[MAX_EXTENSION_SIZE];
+    char Filename[MAX_FILE_NAME_SIZE];
 
     fprintf(stdout, PROGRAM " v" VERSION ", Copyright (C) 2017 Jacques Pelletier & contributors\n\n");
 
@@ -122,7 +128,8 @@ int main(int argc, char *argv[])
         unsigned int i;
 
         /* Read a line from input file. */
-        GetLine(Line, Filin);
+        fileIn = GetInFile();
+        GetLine(Line, fileIn);
         Record_Nb++;
 
         /* Remove carriage return/line feed at the end of line. */
@@ -185,20 +192,21 @@ int main(int argc, char *argv[])
                 Highest_Address = temp;
             }
         }
-    } while (!feof(Filin));
+    } while (!feof(fileIn));
 
     Allocate_Memory_And_Rewind();
 
     Record_Nb = 0;
 
     /* Read the file & process the lines. */
-    do { /* repeat until EOF(Filin) */
+    do { /* repeat until EOF(fileIn) */
         int i;
 
         Checksum = 0;
 
         /* Read a line from input file. */
-        GetLine(Line, Filin);
+        fileIn = GetInFile();
+        GetLine(Line, fileIn);
         Record_Nb++;
 
         /* Remove carriage return/line feed at the end of line. */
@@ -338,18 +346,18 @@ int main(int argc, char *argv[])
             Record_Checksum &= 0xFF;
 
             /* Verify Checksum value. */
-            if (((Record_Checksum + Checksum) != 0xFF) && Enable_Checksum_Error) {
+            if (((Record_Checksum + Checksum) != 0xFF) && GetEnableChecksumError()) {
                 fprintf(stderr, "Checksum error in record %d: should be %02X\n", Record_Nb, 255 - Checksum);
-                Status_Checksum_Error = true;
+                SetStatusChecksumError(true);
             }
         }
-    } while (!feof(Filin));
+    } while (!feof(fileIn));
     /* ----------------------------------------------------------------------------- */
 
     fprintf(stdout, "Binary file start = %08X\n", Lowest_Address);
     fprintf(stdout, "Records start     = %08X\n", Records_Start);
     fprintf(stdout, "Highest address   = %08X\n", Highest_Address);
-    fprintf(stdout, "Pad Byte          = %X\n", Pad_Byte);
+    fprintf(stdout, "Pad Byte          = %X\n", GetPadByte());
 
     WriteMemory();
 
@@ -358,10 +366,10 @@ int main(int argc, char *argv[])
     free(FiloutBuf);
 #endif
 
-    fclose(Filin);
-    fclose(Filout);
+    fclose(fileIn);
+//    fclose(fileOut);
 
-    if (Status_Checksum_Error && Enable_Checksum_Error) {
+    if (GetStatusChecksumError() && GetEnableChecksumError()) {
         fprintf(stderr, "Checksum error detected.\n");
         return 1;
     }

@@ -26,8 +26,41 @@
 */
 
 #include "common.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
 
-filetype Filename;                  /* string for opening files */
+#include "binary.h"
+#include "libcrc.h"
+
+#define LAST_CHECK_METHOD 5
+
+/* We use buffer to speed disk access. */
+#ifdef USE_FILE_BUFFERS
+#define BUFFSZ 4096
+#endif
+
+/* option character */
+#if defined(MSDOS) || defined(__DOS__) || defined(__MSDOS__) || defined(_MSDOS)
+#define _IS_OPTION_(x) (((x) == '-') || ((x) == '/'))
+#else
+/* Assume unix and similar */
+/* We don't accept an option beginning with a '/' because it could be a file name. */
+#define _IS_OPTION_(x) ((x) == '-')
+#endif
+
+typedef enum Crc {
+    CHK8_SUM = 0,
+    CHK16,
+    CRC8,
+    CRC16,
+    CRC32,
+    CHK16_8
+} t_CRC;
+
 char Extension[MAX_EXTENSION_SIZE]; /* filename extension for output files */
 
 FILE *Filin;  /* input files */
@@ -41,12 +74,12 @@ char *FiloutBuf; /* text buffer for file output */
 int Pad_Byte = 0xFF;
 bool Enable_Checksum_Error = false;
 bool Status_Checksum_Error = false;
-byte Checksum;
+uint8_t Checksum;
 unsigned int Record_Nb;
 unsigned int Nb_Bytes;
 
 /* This will hold binary codes translated from hex file. */
-byte *Memory_Block;
+uint8_t *Memory_Block;
 unsigned int Lowest_Address, Highest_Address;
 unsigned int Starting_Address, Phys_Addr;
 unsigned int Records_Start; // Lowest address of the records
@@ -68,15 +101,21 @@ bool Verbose_Flag = false;
 int Endian = 0;
 
 t_CRC Cks_Type = CHK8_SUM;
-unsigned int Cks_Start = 0, Cks_End = 0, Cks_Addr = 0, Cks_Value = 0;
+unsigned int Cks_Start = 0;
+unsigned int  Cks_End = 0;
+unsigned int  Cks_Addr = 0;
+unsigned int  Cks_Value = 0;
 bool Cks_range_set = false;
 bool Cks_Addr_set = false;
 bool Force_Value = false;
 
-unsigned int Crc_Poly = 0x07, Crc_Init = 0, Crc_XorOut = 0;
+uint16_t Crc_Poly = 0x07;
+uint16_t Crc_Init = 0;
+uint16_t Crc_XorOut = 0;
 bool Crc_RefIn = false;
 bool Crc_RefOut = false;
 
+/* procedure USAGE */
 void usage(void)
 {
     fprintf(stderr,
@@ -116,9 +155,9 @@ void usage(void)
         "  -w            Swap wordwise (low <-> high)\n\n",
         Pgm_Name, Pad_Byte);
     exit(1);
-} /* procedure USAGE */
+}
 
-void DisplayCheckMethods(void)
+static void DisplayCheckMethods(void)
 {
     fprintf(stderr, "Check methods/value size:\n"
         "0:  Checksum  8-bit\n"
@@ -130,7 +169,7 @@ void DisplayCheckMethods(void)
     exit(1);
 }
 
-void *NoFailMalloc(size_t size)
+static void *NoFailMalloc(size_t size)
 {
     void *result;
 
@@ -196,7 +235,7 @@ void GetLine(char *str, FILE *in)
 }
 
 // 0 or 1
-int GetBin(const char *str)
+static int GetBin(const char *str)
 {
     int result;
     unsigned int value;
@@ -211,7 +250,8 @@ int GetBin(const char *str)
     }
 }
 
-int GetDec(const char *str)
+#if 0
+static int GetDec(const char *str)
 {
     int result;
     unsigned int value;
@@ -225,8 +265,9 @@ int GetDec(const char *str)
         exit(1);
     }
 }
+#endif
 
-int GetHex(const char *str)
+static int GetHex(const char *str)
 {
     int result;
     unsigned int value;
@@ -242,7 +283,7 @@ int GetHex(const char *str)
 }
 
 // Char t/T: true f/F: false
-bool GetBoolean(const char *str)
+static bool GetBoolean(const char *str)
 {
     int result;
     unsigned char value, temp;
@@ -268,7 +309,7 @@ void GetFilename(char *dest, char *src)
     }
 }
 
-void GetExtension(const char *str, char *ext)
+static void GetExtension(const char *str, char *ext)
 {
     if (strlen(str) > MAX_EXTENSION_SIZE) {
         usage();
@@ -314,7 +355,7 @@ void VerifyRangeFloorCeil(void)
     }
 }
 
-void CrcParamsCheck(void)
+static void CrcParamsCheck(void)
 {
     switch (Cks_Type) {
         case CRC8:
@@ -335,7 +376,7 @@ void CrcParamsCheck(void)
     }
 }
 
-void WriteMemBlock16(uint16_t Value)
+static void WriteMemBlock16(uint16_t Value)
 {
     if (Endian == 1) {
         Memory_Block[Cks_Addr - Lowest_Address] = u16_hi(Value);
@@ -346,7 +387,7 @@ void WriteMemBlock16(uint16_t Value)
     }
 }
 
-void WriteMemBlock32(uint32_t Value)
+static void WriteMemBlock32(uint32_t Value)
 {
     if (Endian == 1) {
         Memory_Block[Cks_Addr - Lowest_Address] = u32_b3(Value);
@@ -363,6 +404,8 @@ void WriteMemBlock32(uint32_t Value)
 
 void WriteMemory(void)
 {
+    void *crc_table = NULL;
+
     if ((Cks_Addr >= Lowest_Address) && (Cks_Addr < Highest_Address)) {
         if (Force_Value) {
             switch (Cks_Type) {
@@ -397,8 +440,6 @@ void WriteMemory(void)
                 Cks_End = Highest_Address;
             }
 
-            crc_table = NULL;
-
             switch (Cks_Type) {
                 case CHK8_SUM: {
                     uint8_t wCKS = 0;
@@ -419,12 +460,12 @@ void WriteMemory(void)
 
                     if (Endian == 1) {
                         for (unsigned int i = Cks_Start; i <= Cks_End; i += 2) {
-                            w = Memory_Block[i - Lowest_Address + 1] | ((word)Memory_Block[i - Lowest_Address] << 8);
+                            w = Memory_Block[i - Lowest_Address + 1] | ((uint16_t)Memory_Block[i - Lowest_Address] << 8);
                             wCKS += w;
                         }
                     } else {
                         for (unsigned int i = Cks_Start; i <= Cks_End; i += 2) {
-                            w = Memory_Block[i - Lowest_Address] | ((word)Memory_Block[i - Lowest_Address + 1] << 8);
+                            w = Memory_Block[i - Lowest_Address] | ((uint16_t)Memory_Block[i - Lowest_Address + 1] << 8);
                             wCKS += w;
                         }
                     }
@@ -519,11 +560,13 @@ void WriteMemory(void)
                     fprintf(stdout, "Addr %08X set to %08X\n", Cks_Addr, CRC32);
                 } break;
 
-                default:;
+                default:
+                    break;
             }
 
-            if (crc_table != NULL)
+            if (crc_table != NULL) {
                 free(crc_table);
+            }
         }
     } else {
         if (Force_Value || Cks_Addr_set) {
@@ -541,7 +584,7 @@ void WriteMemory(void)
         Module = Max_Length % Minimum_Block_Size;
         if (Module) {
             Module = Minimum_Block_Size - Module;
-            Memory_Block = (byte *)NoFailMalloc(Module);
+            Memory_Block = (uint8_t *)NoFailMalloc(Module);
             memset(Memory_Block, Pad_Byte, Module);
             fwrite(Memory_Block, Module, 1, Filout);
             free(Memory_Block);
@@ -580,7 +623,7 @@ void Allocate_Memory_And_Rewind(void)
 
     /* Now that we know the buffer size, we can allocate it. */
     /* allocate a buffer */
-    Memory_Block = (byte *)NoFailMalloc(Max_Length);
+    Memory_Block = (uint8_t *)NoFailMalloc(Max_Length);
 
     /* For EPROM or FLASH memory types, fill unused bytes with FF or the value specified by the p option */
     memset(Memory_Block, Pad_Byte, Max_Length);
@@ -624,6 +667,13 @@ char *ReadDataBytes(char *p)
     return p;
 }
 
+/*
+ * Parse options on the command line
+ * variables:
+ * use p for parsing arguments
+ * use i for number of parameters to skip
+ * use c for the current option
+ */
 void ParseOptions(int argc, char *argv[])
 {
     int Param;
@@ -631,12 +681,6 @@ void ParseOptions(int argc, char *argv[])
 
     Starting_Address = 0;
 
-    /* Parse options on the command line
-    variables:
-    use p for parsing arguments
-    use i for number of parameters to skip
-    use c for the current option
-    */
     for (Param = 1; Param < argc; Param++) {
         int i = 0;
         char c;
@@ -773,4 +817,49 @@ void ParseOptions(int argc, char *argv[])
         }
         /* if option */
     } /* for Param */
+}
+
+FILE *GetInFile(void)
+{
+    return Filin;
+}
+
+bool GetFloorAddressSetted(void)
+{
+    return Floor_Address_Setted;
+}
+
+bool GetCeilingAddressSetted(void)
+{
+    return Ceiling_Address_Setted;
+}
+
+bool GetAddressAlignmentWord(void)
+{
+    return Address_Alignment_Word;
+}
+
+bool GetStatusChecksumError(void)
+{
+    return Status_Checksum_Error;
+}
+
+void SetStatusChecksumError(bool value)
+{
+    Status_Checksum_Error = value;
+}
+
+bool GetEnableChecksumError(void)
+{
+    return Enable_Checksum_Error;
+}
+
+unsigned int GetCeilingAddress(void)
+{
+    return Ceiling_Address;
+}
+
+int GetPadByte(void)
+{
+    return Pad_Byte;
 }

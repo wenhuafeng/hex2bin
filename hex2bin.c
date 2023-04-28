@@ -57,6 +57,7 @@
 #define PROGRAM "hex2bin"
 #define VERSION "2.5"
 
+#include <string.h>
 #include "common.h"
 
 #define NO_ADDRESS_TYPE_SELECTED 0
@@ -90,7 +91,13 @@ int main(int argc, char *argv[])
 
     unsigned int temp2;
 
-    byte Data_Str[MAX_LINE_SIZE];
+    uint8_t Data_Str[MAX_LINE_SIZE];
+
+    FILE *fileIn = NULL;
+//    FILE *fileOut = NULL;
+
+    char Extension[MAX_EXTENSION_SIZE];
+    char Filename[MAX_FILE_NAME_SIZE];
 
     fprintf(stdout, PROGRAM " v" VERSION ", Copyright (C) 2017 Jacques Pelletier & contributors\n\n");
 
@@ -140,7 +147,8 @@ int main(int argc, char *argv[])
         unsigned int i;
 
         /* Read a line from input file. */
-        GetLine(Line, Filin);
+        fileIn = GetInFile();
+        GetLine(Line, fileIn);
         Record_Nb++;
 
         /* Remove carriage return/line feed at the end of line. */
@@ -182,7 +190,7 @@ int main(int argc, char *argv[])
                         fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
 
                     /* Floor address */
-                    if (Floor_Address_Setted) {
+                    if (GetFloorAddressSetted()) {
                         /* Discard if lower than Floor_Address */
                         if (Phys_Addr < (Floor_Address - Starting_Address)) {
                             if (Verbose_Flag)
@@ -199,12 +207,12 @@ int main(int argc, char *argv[])
                     temp = Phys_Addr + Nb_Bytes - 1;
 
                     /* Ceiling address */
-                    if (Ceiling_Address_Setted) {
+                    if (GetCeilingAddressSetted()) {
                         /* Discard if higher than Ceiling_Address */
-                        if (temp > (Ceiling_Address + Starting_Address)) {
+                        if (temp > (GetCeilingAddress() + Starting_Address)) {
                             if (Verbose_Flag)
                                 fprintf(stderr, "Discard physical address more than %08X\n",
-                                    Ceiling_Address + Starting_Address);
+                                    GetCeilingAddress() + Starting_Address);
                             break;
                         }
                     }
@@ -293,9 +301,9 @@ int main(int argc, char *argv[])
                     break;
             }
         }
-    } while (!feof(Filin));
+    } while (!feof(fileIn));
 
-    if (Address_Alignment_Word) {
+    if (GetAddressAlignmentWord()) {
         Highest_Address += (Highest_Address - Lowest_Address) + 1;
     }
 
@@ -306,11 +314,12 @@ int main(int argc, char *argv[])
     Record_Nb = 0;
 
     /* Read the file & process the lines. */
-    do { /* repeat until EOF(Filin) */
+    do { /* repeat until EOF(fileIn) */
         unsigned int i;
 
         /* Read a line from input file. */
-        GetLine(Line, Filin);
+        fileIn = GetInFile();
+        GetLine(Line, fileIn);
         Record_Nb++;
 
         /* Remove carriage return/line feed at the end of line. */
@@ -352,7 +361,7 @@ int main(int argc, char *argv[])
                         /* LINEAR_ADDRESS or NO_ADDRESS_TYPE_SELECTED
                            Upper_Address = 0 as specified in the Intel spec. until an extended address
                            record is read. */
-                        if (Address_Alignment_Word)
+                    if (GetAddressAlignmentWord())
                         Phys_Addr = ((Upper_Address << 16) + (Address << 1)) + Offset;
                     else
                         Phys_Addr = ((Upper_Address << 16) + Address);
@@ -421,7 +430,7 @@ int main(int argc, char *argv[])
                     /* First_Word contains the offset. It's supposed to be 0000 so
                        we ignore it. */
 
-                    if (Address_Alignment_Word) {
+                    if (GetAddressAlignmentWord()) {
                         sscanf(p, "%4x", &Offset);
                         Offset = Offset << 16;
                         Offset -= Lowest_Address;
@@ -455,13 +464,13 @@ int main(int argc, char *argv[])
                     break;
             }
         }
-    } while (!feof(Filin));
+    } while (!feof(fileIn));
     /* ----------------------------------------------------------------------------- */
 
     fprintf(stdout, "Binary file start = %08X\n", Lowest_Address);
     fprintf(stdout, "Records start     = %08X\n", Records_Start);
     fprintf(stdout, "Highest address   = %08X\n", Highest_Address);
-    fprintf(stdout, "Pad Byte          = %X\n", Pad_Byte);
+    fprintf(stdout, "Pad Byte          = %X\n", GetPadByte());
 
     WriteMemory();
 
@@ -470,10 +479,10 @@ int main(int argc, char *argv[])
     free(FiloutBuf);
 #endif
 
-    fclose(Filin);
-    fclose(Filout);
+    fclose(fileIn);
+//    fclose(fileOut);
 
-    if (Status_Checksum_Error && Enable_Checksum_Error) {
+    if (GetStatusChecksumError() && GetEnableChecksumError()) {
         fprintf(stderr, "Checksum error detected.\n");
         return 1;
     }
