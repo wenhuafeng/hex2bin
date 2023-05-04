@@ -67,103 +67,43 @@
 
 const char *Pgm_Name = PROGRAM;
 
-int main(int argc, char *argv[])
+unsigned int Seg_Lin_Select = NO_ADDRESS_TYPE_SELECTED;
+
+
+void get_highest_and_lowest_addresses(char *line)
 {
-    /* line inputted from file */
-    char Line[MAX_LINE_SIZE];
-
-    /* flag that a file was read */
-    bool Fileread;
-
-    /* cmd-line parameter # */
-    char *p;
-
-    int result;
-
-    /* Application specific */
-    unsigned int First_Word, Address, Segment, Upper_Address;
-    unsigned int Type;
-    unsigned int Offset = 0x00;
-    unsigned int temp;
-
-    /* We will assume that when one type of addressing is selected, it will be valid for all the
-     current file. Records for the other type will be ignored. */
-    unsigned int Seg_Lin_Select = NO_ADDRESS_TYPE_SELECTED;
-
-    unsigned int temp2;
-
-    uint8_t Data_Str[MAX_LINE_SIZE];
-
+    unsigned int i;
     FILE *fileIn = NULL;
-//    FILE *fileOut = NULL;
-
-    char Extension[MAX_EXTENSION_SIZE];
-    char Filename[MAX_FILE_NAME_SIZE];
-
-    fprintf(stdout, PROGRAM " v" VERSION ", Copyright (C) 2017 Jacques Pelletier & contributors\n\n");
-
-    if (argc == 1)
-        usage();
-
-    strcpy(Extension, "bin"); /* default is for binary file extension */
-
-    ParseOptions(argc, argv);
-
-    /* when user enters input file name */
-
-    /* Assume last parameter is filename */
-    GetFilename(Filename, argv[argc - 1]);
-
-    /* Just a normal file name */
-    NoFailOpenInputFile(Filename);
-    PutExtension(Filename, Extension);
-    NoFailOpenOutputFile(Filename);
-    Fileread = true;
-
-    /* When the hex file is opened, the program will read it in 2 passes.
-    The first pass gets the highest and lowest addresses so that we can allocate
-    the right size.
-    The second pass processes the hex data. */
-
-    /* To begin, assume the lowest address is at the end of the memory.
-     While reading each records, subsequent addresses will lower this number.
-     At the end of the input file, this value will be the lowest address.
-
-     A similar assumption is made for highest address. It starts at the
-     beginning of memory. While reading each records, subsequent addresses will raise this number.
-     At the end of the input file, this value will be the highest address. */
-    Lowest_Address = (unsigned int)-1;
-    Highest_Address = 0;
-    Records_Start = 0;
-    Segment = 0;
-    Upper_Address = 0;
-    Record_Nb = 0; // Used for reporting errors
-    First_Word = 0;
-
-    /* Check if are set Floor and Ceiling Address and range is coherent */
-    VerifyRangeFloorCeil();
+    int result;
+    unsigned int First_Word;
+    unsigned int Type;
+    uint8_t Data_Str[MAX_LINE_SIZE];
+    char *p;
+    unsigned int Address;
+    unsigned int Segment = 0x00;
+    unsigned int Upper_Address = 0x00;
+    unsigned int temp;
+    unsigned int temp2;
 
     /* get highest and lowest addresses so that we can allocate the rintervallo incoerenteight size */
     do {
-        unsigned int i;
-
         /* Read a line from input file. */
         fileIn = GetInFile();
-        GetLine(Line, fileIn);
+        GetLine(line, fileIn);
         Record_Nb++;
 
         /* Remove carriage return/line feed at the end of line. */
-        i = strlen(Line);
+        i = strlen(line);
 
         if (--i != 0) {
-            if (Line[i] == '\n')
-                Line[i] = '\0';
+            if (line[i] == '\n')
+                line[i] = '\0';
 
             /* Scan the first two bytes and nb of bytes.
                The two bytes are read in First_Word since its use depend on the
                record type: if it's an extended address record or a data record.
                */
-            result = sscanf(Line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
+            result = sscanf(line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
             if (result != 4)
                 fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
 
@@ -173,8 +113,9 @@ int main(int argc, char *argv[])
             switch (Type) {
                 /* Data record */
                 case 0:
-                    if (Nb_Bytes == 0)
+                    if (Nb_Bytes == 0) {
                         break;
+                    }
 
                     Address = First_Word;
 
@@ -187,16 +128,18 @@ int main(int argc, char *argv[])
                         Phys_Addr = ((Upper_Address << 16) + Address);
                     }
 
-                    if (Verbose_Flag)
+                    if (Verbose_Flag) {
                         fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
+                    }
 
                     /* Floor address */
                     if (GetFloorAddressSetted()) {
                         /* Discard if lower than Floor_Address */
                         if (Phys_Addr < (Floor_Address - Starting_Address)) {
-                            if (Verbose_Flag)
+                            if (Verbose_Flag) {
                                 fprintf(stderr, "Discard physical address less than %08X\n",
                                     Floor_Address - Starting_Address);
+                            }
                             break;
                         }
                     }
@@ -211,9 +154,10 @@ int main(int argc, char *argv[])
                     if (GetCeilingAddressSetted()) {
                         /* Discard if higher than Ceiling_Address */
                         if (temp > (GetCeilingAddress() + Starting_Address)) {
-                            if (Verbose_Flag)
+                            if (Verbose_Flag) {
                                 fprintf(stderr, "Discard physical address more than %08X\n",
                                     GetCeilingAddress() + Starting_Address);
+                            }
                             break;
                         }
                     }
@@ -226,8 +170,9 @@ int main(int argc, char *argv[])
                     break;
 
                 case 1:
-                    if (Verbose_Flag)
+                    if (Verbose_Flag) {
                         fprintf(stderr, "End of File record\n");
+                    }
                     break;
 
                 case 2:
@@ -273,17 +218,19 @@ int main(int argc, char *argv[])
                     /* Then ignore subsequent extended segment address records */
                     if (Seg_Lin_Select == LINEAR_ADDRESS) {
                         result = sscanf(p, "%4x%2x", &Upper_Address, &temp2);
-                        if (result != 2)
+                        if (result != 2) {
                             fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
-
-                        if (Verbose_Flag)
+                        }
+                        if (Verbose_Flag) {
                             fprintf(stderr, "Extended Linear Address record: %04X\n", Upper_Address);
+                        }
 
                         /* Update the current address. */
                         Phys_Addr = (Upper_Address << 16);
 
-                        if (Verbose_Flag)
+                        if (Verbose_Flag) {
                             fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
+                        }
                     } else {
                         fprintf(stderr, "Ignored extended segment address record %d\n", Record_Nb);
                     }
@@ -303,40 +250,44 @@ int main(int argc, char *argv[])
             }
         }
     } while (!feof(fileIn));
+}
 
-    if (GetAddressAlignmentWord()) {
-        Highest_Address += (Highest_Address - Lowest_Address) + 1;
-    }
-
-    Allocate_Memory_And_Rewind();
-
-    Segment = 0;
-    Upper_Address = 0;
-    Record_Nb = 0;
+void read_file_process_lines(char *line)
+{
+    unsigned int i;
+    FILE *fileIn = NULL;
+    int result;
+    unsigned int First_Word;
+    unsigned int Type;
+    uint8_t Data_Str[MAX_LINE_SIZE];
+    char *p;
+    unsigned int Address;
+    unsigned int Segment = 0x00;
+    unsigned int Upper_Address = 0x00;
+    unsigned int temp2;
+    unsigned int Offset = 0x00;
 
     /* Read the file & process the lines. */
     do { /* repeat until EOF(fileIn) */
-        unsigned int i;
-
         /* Read a line from input file. */
         fileIn = GetInFile();
-        GetLine(Line, fileIn);
+        GetLine(line, fileIn);
         Record_Nb++;
 
         /* Remove carriage return/line feed at the end of line. */
-        i = strlen(Line);
+        i = strlen(line);
 
         // fprintf(stderr,"Record: %d; length: %d\n", Record_Nb, i);
 
         if (--i != 0) {
-            if (Line[i] == '\n')
-                Line[i] = '\0';
+            if (line[i] == '\n')
+                line[i] = '\0';
 
             /* Scan the first two bytes and nb of bytes.
                The two bytes are read in First_Word since its use depend on the
                record type: if it's an extended address record or a data record.
             */
-            result = sscanf(Line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
+            result = sscanf(line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
             if (result != 4) {
                 fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
             }
@@ -466,6 +417,101 @@ int main(int argc, char *argv[])
             }
         }
     } while (!feof(fileIn));
+}
+
+int main(int argc, char *argv[])
+{
+    /* line inputted from file */
+    char Line[MAX_LINE_SIZE];
+
+    /* flag that a file was read */
+    //bool Fileread;
+
+    /* cmd-line parameter # */
+    //char *p;
+
+    //int result;
+
+    /* Application specific */
+    //unsigned int First_Word;
+    //unsigned int Address;
+    //unsigned int Segment;
+    //unsigned int Upper_Address;
+    //unsigned int Type;
+    //unsigned int Offset = 0x00;
+    //unsigned int temp;
+
+    /* We will assume that when one type of addressing is selected, it will be valid for all the
+     current file. Records for the other type will be ignored. */
+    //unsigned int Seg_Lin_Select = NO_ADDRESS_TYPE_SELECTED;
+
+    //unsigned int temp2;
+
+    //uint8_t Data_Str[MAX_LINE_SIZE];
+
+    //FILE *fileIn = NULL;
+//    FILE *fileOut = NULL;
+
+    char Extension[MAX_EXTENSION_SIZE];
+    char Filename[MAX_FILE_NAME_SIZE];
+
+    fprintf(stdout, PROGRAM " v" VERSION ", Copyright (C) 2017 Jacques Pelletier & contributors\n\n");
+
+    if (argc == 1) {
+        usage();
+    }
+
+    strcpy(Extension, "bin"); /* default is for binary file extension */
+
+    ParseOptions(argc, argv);
+
+    /* when user enters input file name */
+
+    /* Assume last parameter is filename */
+    GetFilename(Filename, argv[argc - 1]);
+
+    /* Just a normal file name */
+    NoFailOpenInputFile(Filename);
+    PutExtension(Filename, Extension);
+    NoFailOpenOutputFile(Filename);
+    //Fileread = true;
+
+    /* When the hex file is opened, the program will read it in 2 passes.
+    The first pass gets the highest and lowest addresses so that we can allocate
+    the right size.
+    The second pass processes the hex data. */
+
+    /* To begin, assume the lowest address is at the end of the memory.
+     While reading each records, subsequent addresses will lower this number.
+     At the end of the input file, this value will be the lowest address.
+
+     A similar assumption is made for highest address. It starts at the
+     beginning of memory. While reading each records, subsequent addresses will raise this number.
+     At the end of the input file, this value will be the highest address. */
+    Lowest_Address = (unsigned int)-1;
+    Highest_Address = 0;
+    Records_Start = 0;
+    //Segment = 0;
+    //Upper_Address = 0;
+    Record_Nb = 0; // Used for reporting errors
+    //First_Word = 0;
+
+    /* Check if are set Floor and Ceiling Address and range is coherent */
+    VerifyRangeFloorCeil();
+
+    get_highest_and_lowest_addresses(Line);
+
+    if (GetAddressAlignmentWord()) {
+        Highest_Address += (Highest_Address - Lowest_Address) + 1;
+    }
+
+    Allocate_Memory_And_Rewind();
+
+    //Segment = 0;
+    //Upper_Address = 0;
+    Record_Nb = 0;
+
+    read_file_process_lines(Line);
     /* ----------------------------------------------------------------------------- */
 
     fprintf(stdout, "Binary file start = %08X\n", Lowest_Address);
@@ -481,17 +527,19 @@ int main(int argc, char *argv[])
     free(FiloutBuf);
 #endif
 
-    fclose(fileIn);
+    //fclose(fileIn);
 //    fclose(fileOut);
+    NoFailCloseInputFile(NULL);
+    NoFailCloseOutputFile(NULL);
 
     if (GetStatusChecksumError() && GetEnableChecksumError()) {
         fprintf(stderr, "Checksum error detected.\n");
         return 1;
     }
 
-    if (!Fileread) {
-        usage();
-    }
+    //if (!Fileread) {
+    //    usage();
+    //}
 
     return 0;
 }

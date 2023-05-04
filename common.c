@@ -164,6 +164,11 @@ void NoFailOpenInputFile(char *Flnm)
 #endif
 } /* procedure OPENFILIN */
 
+void NoFailCloseInputFile(char *Flnm)
+{
+    fclose(Filin);
+}
+
 /* Open the output file, with error checking */
 void NoFailOpenOutputFile(char *Flnm)
 {
@@ -186,6 +191,11 @@ void NoFailOpenOutputFile(char *Flnm)
     setvbuf(Filout, FiloutBuf, _IOFBF, BUFFSZ);
 #endif
 } /* procedure OPENFILOUT */
+
+void NoFailCloseOutputFile(char *Flnm)
+{
+    //fclose(fileOut);
+}
 
 void GetLine(char *str, FILE *in)
 {

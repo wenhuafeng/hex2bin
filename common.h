@@ -32,7 +32,9 @@ extern bool Verbose_Flag;
 
 extern void usage(void);
 extern void NoFailOpenInputFile(char *Flnm);
+extern void NoFailCloseInputFile(char *Flnm);
 extern void NoFailOpenOutputFile(char *Flnm);
+extern void NoFailCloseOutputFile(char *Flnm);
 extern void GetLine(char *str, FILE *in);
 extern void GetFilename(char *dest, char *src);
 extern void PutExtension(char *Flnm, char *Extension);

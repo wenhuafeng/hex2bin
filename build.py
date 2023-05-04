@@ -6,7 +6,8 @@ hex2bin = 'hex2bin.exe'
 mot2bin = 'mot2bin.exe'
 directory = './bin/Debug'
 
-source_file = 'adc.hex'
+command = 'hex2bin.exe adc.hex'
+#command = 'hex2bin.exe -k 4 -f 0x08000010 -C 0x04C11DB7 0xFFFFFFFF TRUE TRUE 0xFFFFFFFF adc.hex'
 target_file = 'adc.bin'
 
 def cp_build_file(source, target):
@@ -34,7 +35,7 @@ def checksum(file):
 def run_exe(para):
     if para == 'y':
         os.chdir(directory)
-        os.system('hex2bin.exe ' + source_file)
+        os.system(command)
         cs = checksum(target_file)
         print('\r')
         print('checksum: 0x' + cs)

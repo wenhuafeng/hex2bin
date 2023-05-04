@@ -18,6 +18,7 @@
  *
  * libcrc.h       CRC definitions and prototypes
  */
+#include "libcrc.h"
 #include <stdint.h>
 
 #ifndef G_GUINT64_CONSTANT
@@ -26,20 +27,20 @@
 
 void init_crc8_normal_tab(uint8_t *table, uint8_t polynom)
 {
-    int i, j;
+    uint16_t i;
+    uint8_t j;
     uint8_t crc;
-    uint8_t *p;
-
-    p = table;
+    uint8_t *p = table;
 
     for (i = 0; i < 256; i++) {
         crc = (uint8_t)i;
 
         for (j = 0; j < 8; j++) {
-            if (crc & 0x80)
+            if (crc & 0x80) {
                 crc = (crc << 1) ^ polynom;
-            else
+            } else {
                 crc <<= 1;
+            }
         }
         *p++ = crc;
     }
@@ -47,20 +48,20 @@ void init_crc8_normal_tab(uint8_t *table, uint8_t polynom)
 
 void init_crc8_reflected_tab(uint8_t *table, uint8_t polynom)
 {
-    int i, j;
+    uint16_t i;
+    uint8_t j;
     uint8_t crc;
-    uint8_t *p;
-
-    p = table;
+    uint8_t *p = table;
 
     for (i = 0; i < 256; i++) {
         crc = (uint8_t)i;
 
         for (j = 0; j < 8; j++) {
-            if (crc & 0x01)
+            if (crc & 0x01) {
                 crc = (crc >> 1) ^ polynom;
-            else
+            } else {
                 crc >>= 1;
+            }
         }
         *p++ = crc;
     }
@@ -69,20 +70,20 @@ void init_crc8_reflected_tab(uint8_t *table, uint8_t polynom)
 /* Common routines for calculations */
 void init_crc16_normal_tab(uint16_t *table, uint16_t polynom)
 {
-    int i, j;
+    uint16_t i;
+    uint8_t j;
     uint16_t crc;
-    uint16_t *p;
-
-    p = table;
+    uint16_t *p = table;
 
     for (i = 0; i < 256; i++) {
         crc = ((uint16_t)i) << 8;
 
         for (j = 0; j < 8; j++) {
-            if (crc & 0x8000)
+            if (crc & 0x8000) {
                 crc = (crc << 1) ^ polynom;
-            else
+            } else {
                 crc <<= 1;
+            }
         }
         *p++ = crc;
     }
@@ -90,20 +91,20 @@ void init_crc16_normal_tab(uint16_t *table, uint16_t polynom)
 
 void init_crc16_reflected_tab(uint16_t *table, uint16_t polynom)
 {
-    int i, j;
+    uint16_t i;
+    uint8_t j;
     uint16_t crc;
-    uint16_t *p;
-
-    p = table;
+    uint16_t *p = table;
 
     for (i = 0; i < 256; i++) {
         crc = (uint16_t)i;
 
         for (j = 0; j < 8; j++) {
-            if (crc & 0x0001)
+            if (crc & 0x0001) {
                 crc = (crc >> 1) ^ polynom;
-            else
+            } else {
                 crc >>= 1;
+            }
         }
         *p++ = crc;
     }
@@ -111,20 +112,20 @@ void init_crc16_reflected_tab(uint16_t *table, uint16_t polynom)
 
 void init_crc32_normal_tab(uint32_t *table, uint32_t polynom)
 {
-    int i, j;
+    uint16_t i;
+    uint8_t j;
     uint32_t crc;
-    uint32_t *p;
-
-    p = table;
+    uint32_t *p = table;
 
     for (i = 0; i < 256; i++) {
         crc = ((uint32_t)i) << 24;
 
         for (j = 0; j < 8; j++) {
-            if (crc & 0x80000000L)
+            if (crc & 0x80000000L) {
                 crc = (crc << 1) ^ polynom;
-            else
+            } else {
                 crc <<= 1;
+            }
         }
         *p++ = crc;
     }
@@ -132,20 +133,20 @@ void init_crc32_normal_tab(uint32_t *table, uint32_t polynom)
 
 void init_crc32_reflected_tab(uint32_t *table, uint32_t polynom)
 {
-    int i, j;
+    uint16_t i;
+    uint8_t j;
     uint32_t crc;
-    uint32_t *p;
-
-    p = table;
+    uint32_t *p = table;
 
     for (i = 0; i < 256; i++) {
         crc = (uint32_t)i;
 
         for (j = 0; j < 8; j++) {
-            if (crc & 0x00000001L)
+            if (crc & 0x00000001L) {
                 crc = (crc >> 1) ^ polynom;
-            else
+            } else {
                 crc >>= 1;
+            }
         }
         *p++ = crc;
     }
