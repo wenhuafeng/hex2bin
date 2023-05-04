@@ -313,10 +313,11 @@ void read_file_process_lines(char *line)
                         /* LINEAR_ADDRESS or NO_ADDRESS_TYPE_SELECTED
                            Upper_Address = 0 as specified in the Intel spec. until an extended address
                            record is read. */
-                    if (GetAddressAlignmentWord())
+                    if (GetAddressAlignmentWord()) {
                         Phys_Addr = ((Upper_Address << 16) + (Address << 1)) + Offset;
-                    else
+                    } else {
                         Phys_Addr = ((Upper_Address << 16) + Address);
+                    }
 
                     /* Check that the physical address stays in the buffer's range. */
                     if ((Phys_Addr >= Lowest_Address) && (Phys_Addr <= Highest_Address)) {

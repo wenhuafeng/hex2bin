@@ -1,3 +1,0 @@
-./hex2bin.exe -c adc.hex
-
-./hex2bin.exe -k 4 -f 0x08000010 -C 0x04C11DB7 0xFFFFFFFF TRUE TRUE 0xFFFFFFFF adc.hex

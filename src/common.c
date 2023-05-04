@@ -76,7 +76,6 @@ unsigned int Max_Length = 0;
 unsigned int Minimum_Block_Size = 0x1000; // 4096 byte
 unsigned int Floor_Address = 0x0;
 unsigned int Ceiling_Address = 0xFFFFFFFF;
-int Module;
 bool Minimum_Block_Size_Setted = false;
 bool Starting_Address_Setted = false;
 bool Floor_Address_Setted = false;
@@ -350,28 +349,33 @@ char *ReadDataBytes(char *p)
 
 void WriteOutFile(void)
 {
+    int Module;
+
     /* write binary file */
     fwrite(Memory_Block, Max_Length, 1, Filout);
 
     free(Memory_Block);
 
     // Minimum_Block_Size is set; the memory buffer is multiple of this?
-    if (Minimum_Block_Size_Setted == true) {
-        Module = Max_Length % Minimum_Block_Size;
-        if (Module) {
-            Module = Minimum_Block_Size - Module;
-            Memory_Block = (uint8_t *)NoFailMalloc(Module);
-            memset(Memory_Block, Pad_Byte, Module);
-            fwrite(Memory_Block, Module, 1, Filout);
-            free(Memory_Block);
-            if (Max_Length_Setted == true)
-                fprintf(stdout, "Attention Max Length changed by Minimum Block Size\n");
-            // extended
-            Max_Length += Module;
-            Highest_Address += Module;
-            fprintf(stdout, "Extended\nHighest address: %08X\n", Highest_Address);
-            fprintf(stdout, "Max Length: %u\n\n", Max_Length);
+    if (Minimum_Block_Size_Setted == false) {
+        return;
+    }
+
+    Module = Max_Length % Minimum_Block_Size;
+    if (Module) {
+        Module = Minimum_Block_Size - Module;
+        Memory_Block = (uint8_t *)NoFailMalloc(Module);
+        memset(Memory_Block, Pad_Byte, Module);
+        fwrite(Memory_Block, Module, 1, Filout);
+        free(Memory_Block);
+        if (Max_Length_Setted == true) {
+            fprintf(stdout, "Attention Max Length changed by Minimum Block Size\n");
         }
+        // extended
+        Max_Length += Module;
+        Highest_Address += Module;
+        fprintf(stdout, "Extended\nHighest address: %08X\n", Highest_Address);
+        fprintf(stdout, "Max Length: %u\n\n", Max_Length);
     }
 }
 
