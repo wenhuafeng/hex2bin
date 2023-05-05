@@ -51,44 +51,41 @@
 #define _IS_OPTION_(x) ((x) == '-')
 #endif
 
-char Extension[MAX_EXTENSION_SIZE]; /* filename extension for output files */
+static char Extension[MAX_EXTENSION_SIZE]; /* filename extension for output files */
 
-FILE *Filin;  /* input files */
-FILE *Filout; /* output files */
+static FILE *Filin;  /* input files */
+static FILE *Filout; /* output files */
 
 #ifdef USE_FILE_BUFFERS
 char *FilinBuf;  /* text buffer for file input */
 char *FiloutBuf; /* text buffer for file output */
 #endif
 
-int Pad_Byte = 0xFF;
-bool Enable_Checksum_Error = false;
-bool Status_Checksum_Error = false;
-//uint8_t Checksum;
-unsigned int Record_Nb;
-unsigned int Nb_Bytes;
+static int Pad_Byte = 0xFF;
+
+static unsigned int Starting_Address;
+static unsigned int Max_Length = 0;
+static unsigned int Minimum_Block_Size = 0x1000; // 4096 byte
+static unsigned int Floor_Address = 0x0;
+static unsigned int Ceiling_Address = 0xFFFFFFFF;
+static bool Minimum_Block_Size_Setted = false;
+static bool Starting_Address_Setted = false;
+static bool Floor_Address_Setted = false;
+static bool Ceiling_Address_Setted = false;
+static bool Max_Length_Setted = false;
+static bool Swap_Wordwise = false;
+static bool Address_Alignment_Word = false;
+static bool Batch_Mode = false;
+
+static bool Enable_Checksum_Error = false;
+static bool Status_Checksum_Error = false;
+
+bool Verbose_Flag = false;
 
 /* This will hold binary codes translated from hex file. */
 unsigned int Lowest_Address;
 unsigned int Highest_Address;
-unsigned int Starting_Address;
 unsigned int Phys_Addr;
-unsigned int Records_Start; // Lowest address of the records
-unsigned int Max_Length = 0;
-unsigned int Minimum_Block_Size = 0x1000; // 4096 byte
-unsigned int Floor_Address = 0x0;
-unsigned int Ceiling_Address = 0xFFFFFFFF;
-bool Minimum_Block_Size_Setted = false;
-bool Starting_Address_Setted = false;
-bool Floor_Address_Setted = false;
-bool Ceiling_Address_Setted = false;
-bool Max_Length_Setted = false;
-bool Swap_Wordwise = false;
-bool Address_Alignment_Word = false;
-bool Batch_Mode = false;
-bool Verbose_Flag = false;
-
-//int Endian = 0;
 
 /* procedure USAGE */
 void usage(void)
@@ -245,7 +242,7 @@ static void GetExtension(const char *str, char *ext)
 }
 
 /* Adds an extension to a file name */
-void PutExtension(char *Flnm, char *Extension)
+void PutExtension(char *Flnm, char *extension)
 {
     char *Period; /* location of period in file name */
 
@@ -255,21 +252,13 @@ void PutExtension(char *Flnm, char *Extension)
     */
     if ((Period = strrchr(Flnm, '.')) != NULL) {
         *(Period) = '\0';
-        if (strcmp(Extension, Period + 1) == 0) {
+        if (strcmp(extension, Period + 1) == 0) {
             fprintf(stderr, "Input and output filenames (%s) are the same.\n", Flnm);
             exit(1);
         }
     }
     strcat(Flnm, ".");
-    strcat(Flnm, Extension);
-}
-
-void VerifyChecksumValue(uint8_t cs)
-{
-    if ((cs != 0) && Enable_Checksum_Error) {
-        fprintf(stderr, "checksum error in record %d: should be %02X\n", Record_Nb, (256 - cs) & 0xFF);
-        Status_Checksum_Error = true;
-    }
+    strcat(Flnm, extension);
 }
 
 /* Check if are set Floor and Ceiling Address and range is coherent */
@@ -281,10 +270,8 @@ void VerifyRangeFloorCeil(void)
     }
 }
 
-void Allocate_Memory_And_Rewind(void)
+void Allocate_Memory_And_Rewind(uint8_t **memory_block)
 {
-    Records_Start = Lowest_Address;
-
     if (Starting_Address_Setted == true) {
         Lowest_Address = Starting_Address;
     } else {
@@ -305,27 +292,27 @@ void Allocate_Memory_And_Rewind(void)
 
     /* Now that we know the buffer size, we can allocate it. */
     /* allocate a buffer */
-    Memory_Block = (uint8_t *)NoFailMalloc(Max_Length);
+    *memory_block = (uint8_t *)NoFailMalloc(Max_Length);
 
     /* For EPROM or FLASH memory types, fill unused bytes with FF or the value specified by the p option */
-    memset(Memory_Block, Pad_Byte, Max_Length);
+    memset(*memory_block, Pad_Byte, Max_Length);
 
     rewind(Filin);
 }
 
-char *ReadDataBytes(char *p, uint8_t *cs)
+char *ReadDataBytes(char *p, uint8_t *memory_block, uint8_t *cs, uint16_t record_nb, unsigned int nb_bytes)
 {
     unsigned int i, temp2;
     int result;
 
     /* Read the Data bytes. */
     /* Bytes are written in the Memory block even if checksum is wrong. */
-    i = Nb_Bytes;
+    i = nb_bytes;
 
     do {
         result = sscanf(p, "%2x", &temp2);
         if (result != 1) {
-            fprintf(stderr, "ReadDataBytes: error in line %d of hex file\n", Record_Nb);
+            fprintf(stderr, "ReadDataBytes: error in line %d of hex file\n", record_nb);
         }
         p += 2;
 
@@ -333,13 +320,13 @@ char *ReadDataBytes(char *p, uint8_t *cs)
         if (Phys_Addr < Max_Length) {
             /* Overlapping record will erase the pad bytes */
             if (Swap_Wordwise) {
-                if (Memory_Block[Phys_Addr ^ 1] != Pad_Byte)
+                if (memory_block[Phys_Addr ^ 1] != Pad_Byte)
                     fprintf(stderr, "Overlapped record detected\n");
-                Memory_Block[Phys_Addr++ ^ 1] = temp2;
+                memory_block[Phys_Addr++ ^ 1] = temp2;
             } else {
-                if (Memory_Block[Phys_Addr] != Pad_Byte)
+                if (memory_block[Phys_Addr] != Pad_Byte)
                     fprintf(stderr, "Overlapped record detected\n");
-                Memory_Block[Phys_Addr++] = temp2;
+                memory_block[Phys_Addr++] = temp2;
             }
 
             *cs = (*cs + temp2) & 0xFF;
@@ -349,16 +336,16 @@ char *ReadDataBytes(char *p, uint8_t *cs)
     return p;
 }
 
-void WriteOutFile(void)
+void WriteOutFile(uint8_t **memory_block)
 {
     int Module;
+    uint8_t *memory_block_new = NULL;
 
     /* write binary file */
-    fwrite(Memory_Block, Max_Length, 1, Filout);
+    fwrite(*memory_block, Max_Length, 1, Filout);
+    free(*memory_block);
 
-    free(Memory_Block);
-
-    // Minimum_Block_Size is set; the memory buffer is multiple of this?
+    // minimum_block_size is set; the memory buffer is multiple of this?
     if (Minimum_Block_Size_Setted == false) {
         return;
     }
@@ -366,10 +353,10 @@ void WriteOutFile(void)
     Module = Max_Length % Minimum_Block_Size;
     if (Module) {
         Module = Minimum_Block_Size - Module;
-        Memory_Block = (uint8_t *)NoFailMalloc(Module);
-        memset(Memory_Block, Pad_Byte, Module);
-        fwrite(Memory_Block, Module, 1, Filout);
-        free(Memory_Block);
+        memory_block_new = (uint8_t *)NoFailMalloc(Module);
+        memset(memory_block_new, Pad_Byte, Module);
+        fwrite(memory_block_new, Module, 1, Filout);
+        free(memory_block_new);
         if (Max_Length_Setted == true) {
             fprintf(stdout, "Attention Max Length changed by Minimum Block Size\n");
         }
@@ -525,16 +512,6 @@ FILE *GetInFile(void)
     return Filin;
 }
 
-bool GetFloorAddressSetted(void)
-{
-    return Floor_Address_Setted;
-}
-
-bool GetCeilingAddressSetted(void)
-{
-    return Ceiling_Address_Setted;
-}
-
 bool GetAddressAlignmentWord(void)
 {
     return Address_Alignment_Word;
@@ -555,12 +532,43 @@ bool GetEnableChecksumError(void)
     return Enable_Checksum_Error;
 }
 
-unsigned int GetCeilingAddress(void)
-{
-    return Ceiling_Address;
-}
-
 int GetPadByte(void)
 {
     return Pad_Byte;
+}
+
+bool floor_address(void)
+{
+    bool flag = true;
+
+    if (Floor_Address_Setted) {
+        /* Discard if lower than floor_address */
+        if (Phys_Addr < (Floor_Address - Starting_Address)) {
+            if (Verbose_Flag) {
+                fprintf(stderr, "Discard physical address less than %08X\n",
+                    Floor_Address - Starting_Address);
+            }
+            flag = false;
+        }
+    }
+
+    return flag;
+}
+
+bool ceiling_address(unsigned int temp)
+{
+    bool flag = true;
+
+    if (Ceiling_Address_Setted) {
+        /* Discard if higher than ceiling_address */
+        if (temp > (Ceiling_Address + Starting_Address)) {
+            if (Verbose_Flag) {
+                fprintf(stderr, "Discard physical address more than %08X\n",
+                    Ceiling_Address + Starting_Address);
+            }
+            flag = false;
+        }
+    }
+
+    return flag;
 }

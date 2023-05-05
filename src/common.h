@@ -19,17 +19,11 @@
 
 extern const char *Pgm_Name;
 
-//extern uint8_t Checksum;
-extern unsigned int Record_Nb;
-extern unsigned int Nb_Bytes;
-
 /* This will hold binary codes translated from hex file. */
 extern unsigned int Lowest_Address;
 extern unsigned int Highest_Address;
-extern unsigned int Starting_Address;
+//extern unsigned int Starting_Address;
 extern unsigned int Phys_Addr;
-extern unsigned int Records_Start; // Lowest address of the records
-extern unsigned int Floor_Address;
 extern bool Verbose_Flag;
 
 extern void usage(void);
@@ -39,23 +33,25 @@ extern void NoFailOpenOutputFile(char *Flnm);
 extern void NoFailCloseOutputFile(char *Flnm);
 extern void GetLine(char *str, FILE *in);
 extern void GetFilename(char *dest, char *src);
-extern void PutExtension(char *Flnm, char *Extension);
+extern void PutExtension(char *Flnm, char *extension);
 
-extern void VerifyChecksumValue(uint8_t cs);
+//extern void VerifyChecksumValue(uint8_t cs, uint16_t record_nb);
 extern void VerifyRangeFloorCeil(void);
-extern void Allocate_Memory_And_Rewind(void);
-extern char *ReadDataBytes(char *p, uint8_t *cs);
-extern void WriteOutFile(void);
+extern void Allocate_Memory_And_Rewind(uint8_t **memory_block);
+extern char *ReadDataBytes(char *p, uint8_t *memory_block, uint8_t *cs, uint16_t record_nb, unsigned int Nb_Bytes);
+extern void WriteOutFile(uint8_t **memory_block);
 extern void ParseOptions(int argc, char *argv[]);
 
 extern FILE *GetInFile(void);
-extern bool GetFloorAddressSetted(void);
-extern bool GetCeilingAddressSetted(void);
+//extern bool GetFloorAddressSetted(void);
+//extern bool GetCeilingAddressSetted(void);
 extern bool GetAddressAlignmentWord(void);
 extern bool GetStatusChecksumError(void);
 extern void SetStatusChecksumError(bool value);
 extern bool GetEnableChecksumError(void);
-extern unsigned int GetCeilingAddress(void);
+//extern unsigned int GetCeilingAddress(void);
 extern int GetPadByte(void);
+extern bool floor_address(void);
+extern bool ceiling_address(unsigned int temp);
 
 #endif

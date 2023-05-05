@@ -37,7 +37,7 @@
   ADDRESS_MASK is now calculated from MEMORY_SIZE
 
   20120125 Danny Schneider:
-  Added code for filling a binary file to a given Max_Length relative to
+  Added code for filling a binary file to a given max_length relative to
   Starting Address if Max-Address is larger than Highest-Address
   20120509 Yoshimasa Nakane:
   modified error checking (also for output file, JP)
@@ -84,6 +84,8 @@ void get_highest_and_lowest_addresses(char *line)
     unsigned int Upper_Address = 0x00;
     unsigned int temp;
     unsigned int temp2;
+    uint16_t Record_Nb = 0;
+    unsigned int Nb_Bytes = 0;
 
     /* get highest and lowest addresses so that we can allocate the rintervallo incoerenteight size */
     do {
@@ -133,33 +135,21 @@ void get_highest_and_lowest_addresses(char *line)
                     }
 
                     /* Floor address */
-                    if (GetFloorAddressSetted()) {
-                        /* Discard if lower than Floor_Address */
-                        if (Phys_Addr < (Floor_Address - Starting_Address)) {
-                            if (Verbose_Flag) {
-                                fprintf(stderr, "Discard physical address less than %08X\n",
-                                    Floor_Address - Starting_Address);
-                            }
-                            break;
-                        }
+                    if (floor_address() == false) {
+                        break;
                     }
+
                     /* Set the lowest address as base pointer. */
-                    if (Phys_Addr < Lowest_Address)
+                    if (Phys_Addr < Lowest_Address) {
                         Lowest_Address = Phys_Addr;
+                    }
 
                     /* Same for the top address. */
                     temp = Phys_Addr + Nb_Bytes - 1;
 
                     /* Ceiling address */
-                    if (GetCeilingAddressSetted()) {
-                        /* Discard if higher than Ceiling_Address */
-                        if (temp > (GetCeilingAddress() + Starting_Address)) {
-                            if (Verbose_Flag) {
-                                fprintf(stderr, "Discard physical address more than %08X\n",
-                                    GetCeilingAddress() + Starting_Address);
-                            }
-                            break;
-                        }
+                    if (ceiling_address(temp) == false) {
+                        break;
                     }
                     if (temp > Highest_Address) {
                         Highest_Address = temp;
@@ -252,7 +242,15 @@ void get_highest_and_lowest_addresses(char *line)
     } while (!feof(fileIn));
 }
 
-void read_file_process_lines(char *line)
+static void VerifyChecksumValue(uint8_t cs, uint16_t record_nb)
+{
+    if ((cs != 0) && GetEnableChecksumError()) {
+        fprintf(stderr, "checksum error in record %d: should be %02X\n", record_nb, (256 - cs) & 0xFF);
+        SetStatusChecksumError(true);
+    }
+}
+
+void read_file_process_lines(uint8_t *memory_block, char *line)
 {
     unsigned int i;
     FILE *fileIn = NULL;
@@ -267,6 +265,8 @@ void read_file_process_lines(char *line)
     unsigned int temp2;
     unsigned int Offset = 0x00;
     uint8_t Checksum = 0;
+    uint16_t Record_Nb = 0;
+    unsigned int Nb_Bytes = 0;
 
     /* Read the file & process the lines. */
     do { /* repeat until EOF(fileIn) */
@@ -325,7 +325,7 @@ void read_file_process_lines(char *line)
                         /* The memory block begins at Lowest_Address */
                         Phys_Addr -= Lowest_Address;
 
-                        p = ReadDataBytes(p, &Checksum);
+                        p = ReadDataBytes(p, memory_block, &Checksum, Record_Nb, Nb_Bytes);
 
                         /* Read the checksum value. */
                         result = sscanf(p, "%2x", &temp2);
@@ -334,7 +334,7 @@ void read_file_process_lines(char *line)
 
                         /* Verify checksum value. */
                         Checksum = (Checksum + temp2) & 0xFF;
-                        VerifyChecksumValue(Checksum);
+                        VerifyChecksumValue(Checksum, Record_Nb);
                     } else {
                         if (Seg_Lin_Select == SEGMENTED_ADDRESS)
                             fprintf(stderr, "Data record skipped at %4X:%4X\n", Segment, Address);
@@ -369,7 +369,7 @@ void read_file_process_lines(char *line)
 
                         /* Verify checksum value. */
                         Checksum = (Checksum + (Segment >> 8) + (Segment & 0xFF) + temp2) & 0xFF;
-                        VerifyChecksumValue(Checksum);
+                        VerifyChecksumValue(Checksum, Record_Nb);
                     }
                     break;
 
@@ -404,7 +404,7 @@ void read_file_process_lines(char *line)
 
                         /* Verify checksum value. */
                         Checksum = (Checksum + (Upper_Address >> 8) + (Upper_Address & 0xFF) + temp2) & 0xFF;
-                        VerifyChecksumValue(Checksum);
+                        VerifyChecksumValue(Checksum, Record_Nb);
                     }
                     break;
 
@@ -426,36 +426,10 @@ int main(int argc, char *argv[])
     /* line inputted from file */
     char Line[MAX_LINE_SIZE];
 
-    /* flag that a file was read */
-    //bool Fileread;
-
-    /* cmd-line parameter # */
-    //char *p;
-
-    //int result;
-
-    /* Application specific */
-    //unsigned int First_Word;
-    //unsigned int Address;
-    //unsigned int Segment;
-    //unsigned int Upper_Address;
-    //unsigned int Type;
-    //unsigned int Offset = 0x00;
-    //unsigned int temp;
-
-    /* We will assume that when one type of addressing is selected, it will be valid for all the
-     current file. Records for the other type will be ignored. */
-    //unsigned int Seg_Lin_Select = NO_ADDRESS_TYPE_SELECTED;
-
-    //unsigned int temp2;
-
-    //uint8_t Data_Str[MAX_LINE_SIZE];
-
-    //FILE *fileIn = NULL;
-//    FILE *fileOut = NULL;
-
     char Extension[MAX_EXTENSION_SIZE];
     char Filename[MAX_FILE_NAME_SIZE];
+    unsigned int Records_Start;
+    uint8_t *Memory_Block = NULL;
 
     fprintf(stdout, PROGRAM " v" VERSION ", Copyright (C) 2017 Jacques Pelletier & contributors\n\n");
 
@@ -495,7 +469,7 @@ int main(int argc, char *argv[])
     Records_Start = 0;
     //Segment = 0;
     //Upper_Address = 0;
-    Record_Nb = 0; // Used for reporting errors
+    //Record_Nb = 0; // Used for reporting errors
     //First_Word = 0;
 
     /* Check if are set Floor and Ceiling Address and range is coherent */
@@ -507,30 +481,23 @@ int main(int argc, char *argv[])
         Highest_Address += (Highest_Address - Lowest_Address) + 1;
     }
 
-    Allocate_Memory_And_Rewind();
-
-    //Segment = 0;
-    //Upper_Address = 0;
-    Record_Nb = 0;
-
-    read_file_process_lines(Line);
-    /* ----------------------------------------------------------------------------- */
+    Records_Start = Lowest_Address;
+    Allocate_Memory_And_Rewind(&Memory_Block);
+    read_file_process_lines(Memory_Block, Line);
 
     fprintf(stdout, "Binary file start = %08X\n", Lowest_Address);
     fprintf(stdout, "Records start     = %08X\n", Records_Start);
     fprintf(stdout, "Highest address   = %08X\n", Highest_Address);
     fprintf(stdout, "Pad Byte          = %X\n", GetPadByte());
 
-    WriteMemory();
-    WriteOutFile();
+    WriteMemory(Memory_Block);
+    WriteOutFile(&Memory_Block);
 
 #ifdef USE_FILE_BUFFERS
     free(FilinBuf);
     free(FiloutBuf);
 #endif
 
-    //fclose(fileIn);
-//    fclose(fileOut);
     NoFailCloseInputFile(NULL);
     NoFailCloseOutputFile(NULL);
 
@@ -538,10 +505,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "checksum error detected.\n");
         return 1;
     }
-
-    //if (!Fileread) {
-    //    usage();
-    //}
 
     return 0;
 }

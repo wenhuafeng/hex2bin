@@ -37,7 +37,7 @@
  * 20100402 JP: ADDRESS_MASK is now calculated from MEMORY_SIZE
  *
  * 20120125 Danny Schneider:
- *          Added code for filling a binary file to a given Max_Length relative to
+ *          Added code for filling a binary file to a given max_length relative to
  *          Starting Address if Max-Address is larger than Highest-Address
  * 20120509 Yoshimasa Nakane:
  *          modified error checking (also for output file, JP)
@@ -63,6 +63,7 @@ void get_highest_and_lowest_addresses(char *line)
     unsigned int i;
     FILE *fileIn = NULL;
     uint16_t Record_Nb = 0;
+    unsigned int Nb_Bytes = 0;
     int result;
     /* cmd-line parameter # */
     //char *p;
@@ -141,17 +142,28 @@ void get_highest_and_lowest_addresses(char *line)
     } while (!feof(fileIn));
 }
 
-void read_file_process_lines(char *line)
+static void verify_checksum(unsigned int record_checksum, uint8_t cs, uint16_t record_nb)
+{
+    /* Verify checksum value. */
+    if (((record_checksum + cs) != 0xFF) && GetEnableChecksumError()) {
+        fprintf(stderr, "checksum error in record %d: should be %02X\n", record_nb, 255 - cs);
+        SetStatusChecksumError(true);
+    }
+}
+
+void read_file_process_lines(uint8_t *memory_block, char *line)
 {
     int i;
     FILE *fileIn = NULL;
     uint16_t Record_Nb = 0;
+    unsigned int Nb_Bytes = 0;
     int result;
     /* cmd-line parameter # */
     char *p;
 
     unsigned int Exec_Address;
-    unsigned int Record_Count, Record_Checksum;
+    unsigned int Record_Count;
+    unsigned int Record_Checksum;
     unsigned int Type;
     unsigned int Address;
     uint8_t Checksum = 0;
@@ -270,7 +282,7 @@ void read_file_process_lines(char *line)
                     }
                     Phys_Addr = Address;
 
-                    p = ReadDataBytes(p, &Checksum);
+                    p = ReadDataBytes(p, memory_block, &Checksum, Record_Nb, Nb_Bytes);
 
                     /* Read the checksum value. */
                     result = sscanf(p, "%2x", &Record_Checksum);
@@ -302,10 +314,7 @@ void read_file_process_lines(char *line)
             Record_Checksum &= 0xFF;
 
             /* Verify checksum value. */
-            if (((Record_Checksum + Checksum) != 0xFF) && GetEnableChecksumError()) {
-                fprintf(stderr, "checksum error in record %d: should be %02X\n", Record_Nb, 255 - Checksum);
-                SetStatusChecksumError(true);
-            }
+            verify_checksum(Record_Checksum, Checksum, Record_Nb);
         }
     } while (!feof(fileIn));
 }
@@ -315,18 +324,10 @@ int main(int argc, char *argv[])
     /* line inputted from file */
     char Line[MAX_LINE_SIZE];
 
-    /* Application specific */
-    //unsigned int First_Word, Address;
-    //unsigned int Type;
-    //unsigned int Exec_Address;
-    //unsigned int temp;
-    //unsigned int Record_Count, Record_Checksum;
-
-    //uint8_t Data_Str[MAX_LINE_SIZE];
-//    FILE *fileOut = NULL;
-
     char Extension[MAX_EXTENSION_SIZE];
     char Filename[MAX_FILE_NAME_SIZE];
+    unsigned int Records_Start;
+    uint8_t *Memory_Block = NULL;
 
     fprintf(stdout, PROGRAM " v" VERSION ", Copyright (C) 2017 Jacques Pelletier & contributors\n\n");
 
@@ -366,25 +367,23 @@ int main(int argc, char *argv[])
     //First_Word = 0;
 
     get_highest_and_lowest_addresses(Line);
-    Allocate_Memory_And_Rewind();
-    read_file_process_lines(Line);
-    /* ----------------------------------------------------------------------------- */
+    Records_Start = Lowest_Address;
+    Allocate_Memory_And_Rewind(&Memory_Block);
+    read_file_process_lines(Memory_Block, Line);
 
     fprintf(stdout, "Binary file start = %08X\n", Lowest_Address);
     fprintf(stdout, "Records start     = %08X\n", Records_Start);
     fprintf(stdout, "Highest address   = %08X\n", Highest_Address);
     fprintf(stdout, "Pad Byte          = %X\n", GetPadByte());
 
-    WriteMemory();
-    WriteOutFile();
+    WriteMemory(Memory_Block);
+    WriteOutFile(&Memory_Block);
 
 #ifdef USE_FILE_BUFFERS
     free(FilinBuf);
     free(FiloutBuf);
 #endif
 
-//    fclose(fileIn);
-//    fclose(fileOut);
     NoFailCloseInputFile(NULL);
     NoFailCloseOutputFile(NULL);
 
@@ -392,10 +391,6 @@ int main(int argc, char *argv[])
         fprintf(stderr, "checksum error detected.\n");
         return 1;
     }
-
-    //if (!Fileread) {
-    //    usage();
-    //}
 
     return 0;
 }

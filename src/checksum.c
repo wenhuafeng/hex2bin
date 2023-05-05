@@ -20,25 +20,24 @@ enum Crc {
 
 #define LAST_CHECK_METHOD CHK16_8
 
-enum Crc Cks_Type = CHK8_SUM;
-unsigned int Cks_Start = 0;
-unsigned int  Cks_End = 0;
-unsigned int  Cks_Addr = 0;
-unsigned int  Cks_Value = 0;
-bool Cks_range_set = false;
-bool Cks_Addr_set = false;
-bool Force_Value = false;
+static enum Crc Cks_Type = CHK8_SUM;
+static unsigned int Cks_Start = 0;
+static unsigned int Cks_End = 0;
+static unsigned int Cks_Addr = 0;
+static unsigned int Cks_Value = 0;
+static bool Cks_range_set = false;
+static bool Cks_Addr_set = false;
+static bool Force_Value = false;
 
-uint16_t Crc_Poly = 0x07;
-uint16_t Crc_Init = 0;
-uint16_t Crc_XorOut = 0;
-bool Crc_RefIn = false;
-bool Crc_RefOut = false;
+static uint16_t Crc_Poly = 0x07;
+static uint16_t Crc_Init = 0;
+static uint16_t Crc_XorOut = 0;
+static bool Crc_RefIn = false;
+static bool Crc_RefOut = false;
 
-uint8_t *Memory_Block = NULL;
-int Endian = 0;
+static int Endian = 0;
 
-typedef void (*checksumHandler)(void);
+typedef void (*checksumHandler)(uint8_t *memory_block);
 struct ChecksumProcess {
     uint8_t type;
     checksumHandler handler;
@@ -87,80 +86,80 @@ static int GetBin(const char *str)
     }
 }
 
-static void WriteMemBlock16(uint16_t Value)
+static void WriteMemBlock16(uint8_t *memory_block, uint16_t Value)
 {
     if (Endian == 1) {
-        Memory_Block[Cks_Addr - Lowest_Address] = u16_hi(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 1] = u16_lo(Value);
+        memory_block[Cks_Addr - Lowest_Address] = u16_hi(Value);
+        memory_block[Cks_Addr - Lowest_Address + 1] = u16_lo(Value);
     } else {
-        Memory_Block[Cks_Addr - Lowest_Address + 1] = u16_hi(Value);
-        Memory_Block[Cks_Addr - Lowest_Address] = u16_lo(Value);
+        memory_block[Cks_Addr - Lowest_Address + 1] = u16_hi(Value);
+        memory_block[Cks_Addr - Lowest_Address] = u16_lo(Value);
     }
 }
 
-static void WriteMemBlock32(uint32_t Value)
+static void WriteMemBlock32(uint8_t *memory_block, uint32_t Value)
 {
     if (Endian == 1) {
-        Memory_Block[Cks_Addr - Lowest_Address] = u32_b3(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 1] = u32_b2(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 2] = u32_b1(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 3] = u32_b0(Value);
+        memory_block[Cks_Addr - Lowest_Address] = u32_b3(Value);
+        memory_block[Cks_Addr - Lowest_Address + 1] = u32_b2(Value);
+        memory_block[Cks_Addr - Lowest_Address + 2] = u32_b1(Value);
+        memory_block[Cks_Addr - Lowest_Address + 3] = u32_b0(Value);
     } else {
-        Memory_Block[Cks_Addr - Lowest_Address + 3] = u32_b3(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 2] = u32_b2(Value);
-        Memory_Block[Cks_Addr - Lowest_Address + 1] = u32_b1(Value);
-        Memory_Block[Cks_Addr - Lowest_Address] = u32_b0(Value);
+        memory_block[Cks_Addr - Lowest_Address + 3] = u32_b3(Value);
+        memory_block[Cks_Addr - Lowest_Address + 2] = u32_b2(Value);
+        memory_block[Cks_Addr - Lowest_Address + 1] = u32_b1(Value);
+        memory_block[Cks_Addr - Lowest_Address] = u32_b0(Value);
     }
 }
 
-static void Checksum8(void)
+static void Checksum8(uint8_t *memory_block)
 {
     uint8_t wCKS = 0;
 
     for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-        wCKS += Memory_Block[i - Lowest_Address];
+        wCKS += memory_block[i - Lowest_Address];
     }
 
     fprintf(stdout, "8-bit checksum = %02X\n", wCKS & 0xff);
-    Memory_Block[Cks_Addr - Lowest_Address] = wCKS;
+    memory_block[Cks_Addr - Lowest_Address] = wCKS;
     fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, wCKS);
 }
 
-static void Checksum16(void)
+static void Checksum16(uint8_t *memory_block)
 {
     uint16_t wCKS = 0;
     uint16_t w;
 
     if (Endian == 1) {
         for (unsigned int i = Cks_Start; i <= Cks_End; i += 2) {
-            w = Memory_Block[i - Lowest_Address + 1] | ((uint16_t)Memory_Block[i - Lowest_Address] << 8);
+            w = memory_block[i - Lowest_Address + 1] | ((uint16_t)memory_block[i - Lowest_Address] << 8);
             wCKS += w;
         }
     } else {
         for (unsigned int i = Cks_Start; i <= Cks_End; i += 2) {
-            w = Memory_Block[i - Lowest_Address] | ((uint16_t)Memory_Block[i - Lowest_Address + 1] << 8);
+            w = memory_block[i - Lowest_Address] | ((uint16_t)memory_block[i - Lowest_Address + 1] << 8);
             wCKS += w;
         }
     }
     fprintf(stdout, "16-bit checksum = %04X\n", wCKS);
-    WriteMemBlock16(wCKS);
+    WriteMemBlock16(memory_block, wCKS);
     fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, wCKS);
 }
 
-static void Checksum16_8(void)
+static void Checksum16_8(uint8_t *memory_block)
 {
     uint16_t wCKS = 0;
 
     for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-        wCKS += Memory_Block[i - Lowest_Address];
+        wCKS += memory_block[i - Lowest_Address];
     }
 
     fprintf(stdout, "16-bit checksum = %04X\n", wCKS);
-    WriteMemBlock16(wCKS);
+    WriteMemBlock16(memory_block, wCKS);
     fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, wCKS);
 }
 
-static void Crc8(void)
+static void Crc8(uint8_t *memory_block)
 {
     uint8_t crc8;
     void *crc_table;
@@ -175,11 +174,11 @@ static void Crc8(void)
     }
 
     for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-        crc8 = update_crc8(crc_table, crc8, Memory_Block[i - Lowest_Address]);
+        crc8 = update_crc8(crc_table, crc8, memory_block[i - Lowest_Address]);
     }
 
     crc8 = (crc8 ^ Crc_XorOut) & 0xff;
-    Memory_Block[Cks_Addr - Lowest_Address] = crc8;
+    memory_block[Cks_Addr - Lowest_Address] = crc8;
     fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, crc8);
 
     if (crc_table != NULL) {
@@ -187,7 +186,7 @@ static void Crc8(void)
     }
 }
 
-static void Crc16(void)
+static void Crc16(uint8_t *memory_block)
 {
     uint16_t crc16;
     void *crc_table;
@@ -198,7 +197,7 @@ static void Crc16(void)
         crc16 = Reflect16(Crc_Init);
 
         for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-            crc16 = update_crc16_reflected(crc_table, crc16, Memory_Block[i - Lowest_Address]);
+            crc16 = update_crc16_reflected(crc_table, crc16, memory_block[i - Lowest_Address]);
         }
     } else {
         init_crc16_normal_tab(crc_table, Crc_Poly);
@@ -206,12 +205,12 @@ static void Crc16(void)
 
 
         for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-            crc16 = update_crc16_normal(crc_table, crc16, Memory_Block[i - Lowest_Address]);
+            crc16 = update_crc16_normal(crc_table, crc16, memory_block[i - Lowest_Address]);
         }
     }
 
     crc16 = (crc16 ^ Crc_XorOut) & 0xffff;
-    WriteMemBlock16(crc16);
+    WriteMemBlock16(memory_block, crc16);
     fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, crc16);
 
     if (crc_table != NULL) {
@@ -219,7 +218,7 @@ static void Crc16(void)
     }
 }
 
-static void Crc32(void)
+static void Crc32(uint8_t *memory_block)
 {
     uint32_t crc32;
     void *crc_table;
@@ -230,19 +229,19 @@ static void Crc32(void)
         crc32 = Reflect32(Crc_Init);
 
         for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-            crc32 = update_crc32_reflected(crc_table, crc32, Memory_Block[i - Lowest_Address]);
+            crc32 = update_crc32_reflected(crc_table, crc32, memory_block[i - Lowest_Address]);
         }
     } else {
         init_crc32_normal_tab(crc_table, Crc_Poly);
         crc32 = Crc_Init;
 
         for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
-            crc32 = update_crc32_normal(crc_table, crc32, Memory_Block[i - Lowest_Address]);
+            crc32 = update_crc32_normal(crc_table, crc32, memory_block[i - Lowest_Address]);
         }
     }
 
     crc32 ^= Crc_XorOut;
-    WriteMemBlock32(crc32);
+    WriteMemBlock32(memory_block, crc32);
     fprintf(stdout, "Addr %08X set to %08X\n", Cks_Addr, crc32);
 
     if (crc_table != NULL) {
@@ -259,13 +258,13 @@ static struct ChecksumProcess ChecksumProcessTable[] = {
     { CRC32, Crc32 },
 };
 
-void ChecksumLoop(uint8_t type)
+void ChecksumLoop(uint8_t *memory_block, uint8_t type)
 {
     uint8_t i;
 
     for (i = 0; i < sizeof(ChecksumProcessTable) / sizeof(ChecksumProcessTable[0]); i++) {
         if (type == ChecksumProcessTable[i].type) {
-            ChecksumProcessTable[i].handler();
+            ChecksumProcessTable[i].handler(memory_block);
             break;
         }
     }
@@ -292,21 +291,21 @@ void CrcParamsCheck(void)
     }
 }
 
-void WriteMemory(void)
+void WriteMemory(uint8_t *memory_block)
 {
     if ((Cks_Addr >= Lowest_Address) && (Cks_Addr < Highest_Address)) {
         if (Force_Value) {
             switch (Cks_Type) {
                 case 0:
-                    Memory_Block[Cks_Addr - Lowest_Address] = Cks_Value;
+                    memory_block[Cks_Addr - Lowest_Address] = Cks_Value;
                     fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, Cks_Value);
                     break;
                 case 1:
-                    WriteMemBlock16(Cks_Value);
+                    WriteMemBlock16(memory_block, Cks_Value);
                     fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, Cks_Value);
                     break;
                 case 2:
-                    WriteMemBlock32(Cks_Value);
+                    WriteMemBlock32(memory_block, Cks_Value);
                     fprintf(stdout, "Addr %08X set to %08X\n", Cks_Addr, Cks_Value);
                     break;
                 default:
@@ -329,7 +328,7 @@ void WriteMemory(void)
                 Cks_End = Highest_Address;
             }
 
-            ChecksumLoop(Cks_Type);
+            ChecksumLoop(memory_block, Cks_Type);
         }
     } else {
         if (Force_Value || Cks_Addr_set) {

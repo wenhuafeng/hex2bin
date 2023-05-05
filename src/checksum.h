@@ -3,14 +3,14 @@
 
 #include <stdint.h>
 
-extern uint8_t *Memory_Block;
+//extern uint8_t *Memory_Block;
 
 extern void *NoFailMalloc(size_t size);
 extern int GetHex(const char *str);
 
 extern void ChecksumLoop(uint8_t type);
 extern void CrcParamsCheck(void);
-extern void WriteMemory(void);
+extern void WriteMemory(uint8_t *memory_block);
 
 extern void Para_E(const char *str);
 extern void Para_f(const char *str);
