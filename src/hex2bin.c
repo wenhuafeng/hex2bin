@@ -266,6 +266,7 @@ void read_file_process_lines(char *line)
     unsigned int Upper_Address = 0x00;
     unsigned int temp2;
     unsigned int Offset = 0x00;
+    uint8_t Checksum = 0;
 
     /* Read the file & process the lines. */
     do { /* repeat until EOF(fileIn) */
@@ -324,16 +325,16 @@ void read_file_process_lines(char *line)
                         /* The memory block begins at Lowest_Address */
                         Phys_Addr -= Lowest_Address;
 
-                        p = ReadDataBytes(p);
+                        p = ReadDataBytes(p, &Checksum);
 
-                        /* Read the Checksum value. */
+                        /* Read the checksum value. */
                         result = sscanf(p, "%2x", &temp2);
                         if (result != 1)
                             fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
 
-                        /* Verify Checksum value. */
+                        /* Verify checksum value. */
                         Checksum = (Checksum + temp2) & 0xFF;
-                        VerifyChecksumValue();
+                        VerifyChecksumValue(Checksum);
                     } else {
                         if (Seg_Lin_Select == SEGMENTED_ADDRESS)
                             fprintf(stderr, "Data record skipped at %4X:%4X\n", Segment, Address);
@@ -366,9 +367,9 @@ void read_file_process_lines(char *line)
                         /* Update the current address. */
                         Phys_Addr = (Segment << 4);
 
-                        /* Verify Checksum value. */
+                        /* Verify checksum value. */
                         Checksum = (Checksum + (Segment >> 8) + (Segment & 0xFF) + temp2) & 0xFF;
-                        VerifyChecksumValue();
+                        VerifyChecksumValue(Checksum);
                     }
                     break;
 
@@ -401,9 +402,9 @@ void read_file_process_lines(char *line)
                         /* Update the current address. */
                         Phys_Addr = (Upper_Address << 16);
 
-                        /* Verify Checksum value. */
+                        /* Verify checksum value. */
                         Checksum = (Checksum + (Upper_Address >> 8) + (Upper_Address & 0xFF) + temp2) & 0xFF;
-                        VerifyChecksumValue();
+                        VerifyChecksumValue(Checksum);
                     }
                     break;
 
@@ -534,7 +535,7 @@ int main(int argc, char *argv[])
     NoFailCloseOutputFile(NULL);
 
     if (GetStatusChecksumError() && GetEnableChecksumError()) {
-        fprintf(stderr, "Checksum error detected.\n");
+        fprintf(stderr, "checksum error detected.\n");
         return 1;
     }
 

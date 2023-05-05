@@ -26,7 +26,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * 20040617 Alf Lacis: Added pad byte (may not always want FF).
- *          Added initialisation to Checksum to remove GNU
+ *          Added initialisation to checksum to remove GNU
  *          compiler warning about possible uninitialised usage
  *          Added 2x'break;' to remove GNU compiler warning about label at
  *          end of compound statement
@@ -154,13 +154,12 @@ void read_file_process_lines(char *line)
     unsigned int Record_Count, Record_Checksum;
     unsigned int Type;
     unsigned int Address;
+    uint8_t Checksum = 0;
 
     uint8_t Data_Str[MAX_LINE_SIZE];
 
     /* Read the file & process the lines. */
     do { /* repeat until EOF(fileIn) */
-        Checksum = 0;
-
         /* Read a line from input file. */
         fileIn = GetInFile();
         GetLine(line, fileIn);
@@ -271,9 +270,9 @@ void read_file_process_lines(char *line)
                     }
                     Phys_Addr = Address;
 
-                    p = ReadDataBytes(p);
+                    p = ReadDataBytes(p, &Checksum);
 
-                    /* Read the Checksum value. */
+                    /* Read the checksum value. */
                     result = sscanf(p, "%2x", &Record_Checksum);
                     if (result != 1) {
                         fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
@@ -302,9 +301,9 @@ void read_file_process_lines(char *line)
 
             Record_Checksum &= 0xFF;
 
-            /* Verify Checksum value. */
+            /* Verify checksum value. */
             if (((Record_Checksum + Checksum) != 0xFF) && GetEnableChecksumError()) {
-                fprintf(stderr, "Checksum error in record %d: should be %02X\n", Record_Nb, 255 - Checksum);
+                fprintf(stderr, "checksum error in record %d: should be %02X\n", Record_Nb, 255 - Checksum);
                 SetStatusChecksumError(true);
             }
         }
@@ -390,7 +389,7 @@ int main(int argc, char *argv[])
     NoFailCloseOutputFile(NULL);
 
     if (GetStatusChecksumError() && GetEnableChecksumError()) {
-        fprintf(stderr, "Checksum error detected.\n");
+        fprintf(stderr, "checksum error detected.\n");
         return 1;
     }
 

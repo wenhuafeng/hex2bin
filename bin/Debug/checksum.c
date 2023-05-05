@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 
     checksum = calculate_checksum(file);
 
-    printf("Checksum: 0x%x\n", checksum);
+    printf("checksum: 0x%x\n", checksum);
     fclose(file);
 
     return 0;

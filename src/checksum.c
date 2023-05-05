@@ -121,7 +121,7 @@ static void Checksum8(void)
         wCKS += Memory_Block[i - Lowest_Address];
     }
 
-    fprintf(stdout, "8-bit Checksum = %02X\n", wCKS & 0xff);
+    fprintf(stdout, "8-bit checksum = %02X\n", wCKS & 0xff);
     Memory_Block[Cks_Addr - Lowest_Address] = wCKS;
     fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, wCKS);
 }
@@ -142,7 +142,7 @@ static void Checksum16(void)
             wCKS += w;
         }
     }
-    fprintf(stdout, "16-bit Checksum = %04X\n", wCKS);
+    fprintf(stdout, "16-bit checksum = %04X\n", wCKS);
     WriteMemBlock16(wCKS);
     fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, wCKS);
 }
@@ -155,7 +155,7 @@ static void Checksum16_8(void)
         wCKS += Memory_Block[i - Lowest_Address];
     }
 
-    fprintf(stdout, "16-bit Checksum = %04X\n", wCKS);
+    fprintf(stdout, "16-bit checksum = %04X\n", wCKS);
     WriteMemBlock16(wCKS);
     fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, wCKS);
 }

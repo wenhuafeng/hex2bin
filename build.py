@@ -7,8 +7,8 @@ makefile_mot2bin = 'src/mot2bin.exe'
 code_directory = 'src'
 out_directory = 'bin/Debug'
 
-command = 'hex2bin.exe adc.hex'
-#command = 'hex2bin.exe -k 4 -f 0x08000010 -C 0x04C11DB7 0xFFFFFFFF TRUE TRUE 0xFFFFFFFF adc.hex'
+#command = 'hex2bin.exe adc.hex'
+command = 'hex2bin.exe -k 4 -f 0x08000010 -C 0x04C11DB7 0xFFFFFFFF TRUE TRUE 0xFFFFFFFF adc.hex'
 target_file = 'adc.bin'
 
 """

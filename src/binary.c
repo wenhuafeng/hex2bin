@@ -146,7 +146,7 @@ uint8_t u64_b0(uint64_t value)
     return (uint8_t)(value & 0x00000000000000FF);
 }
 
-/* Checksum/CRC conversion to ASCII */
+/* checksum/CRC conversion to ASCII */
 uint8_t nibble2ascii(uint8_t value)
 {
     uint8_t result = value & 0x0f;

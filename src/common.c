@@ -64,13 +64,15 @@ char *FiloutBuf; /* text buffer for file output */
 int Pad_Byte = 0xFF;
 bool Enable_Checksum_Error = false;
 bool Status_Checksum_Error = false;
-uint8_t Checksum;
+//uint8_t Checksum;
 unsigned int Record_Nb;
 unsigned int Nb_Bytes;
 
 /* This will hold binary codes translated from hex file. */
-unsigned int Lowest_Address, Highest_Address;
-unsigned int Starting_Address, Phys_Addr;
+unsigned int Lowest_Address;
+unsigned int Highest_Address;
+unsigned int Starting_Address;
+unsigned int Phys_Addr;
 unsigned int Records_Start; // Lowest address of the records
 unsigned int Max_Length = 0;
 unsigned int Minimum_Block_Size = 0x1000; // 4096 byte
@@ -133,12 +135,12 @@ void usage(void)
 static void DisplayCheckMethods(void)
 {
     fprintf(stderr, "Check methods/value size:\n"
-        "0:  Checksum  8-bit\n"
-        "1:  Checksum 16-bit (adds 16-bit words into a 16-bit sum, data and result BE or LE)\n"
+        "0:  checksum  8-bit\n"
+        "1:  checksum 16-bit (adds 16-bit words into a 16-bit sum, data and result BE or LE)\n"
         "2:  CRC8\n"
         "3:  CRC16\n"
         "4:  CRC32\n"
-        "5:  Checksum 16-bit (adds bytes into a 16-bit sum, result BE or LE)\n");
+        "5:  checksum 16-bit (adds bytes into a 16-bit sum, result BE or LE)\n");
     exit(1);
 }
 
@@ -262,10 +264,10 @@ void PutExtension(char *Flnm, char *Extension)
     strcat(Flnm, Extension);
 }
 
-void VerifyChecksumValue(void)
+void VerifyChecksumValue(uint8_t cs)
 {
-    if ((Checksum != 0) && Enable_Checksum_Error) {
-        fprintf(stderr, "Checksum error in record %d: should be %02X\n", Record_Nb, (256 - Checksum) & 0xFF);
+    if ((cs != 0) && Enable_Checksum_Error) {
+        fprintf(stderr, "checksum error in record %d: should be %02X\n", Record_Nb, (256 - cs) & 0xFF);
         Status_Checksum_Error = true;
     }
 }
@@ -311,7 +313,7 @@ void Allocate_Memory_And_Rewind(void)
     rewind(Filin);
 }
 
-char *ReadDataBytes(char *p)
+char *ReadDataBytes(char *p, uint8_t *cs)
 {
     unsigned int i, temp2;
     int result;
@@ -340,7 +342,7 @@ char *ReadDataBytes(char *p)
                 Memory_Block[Phys_Addr++] = temp2;
             }
 
-            Checksum = (Checksum + temp2) & 0xFF;
+            *cs = (*cs + temp2) & 0xFF;
         }
     } while (--i != 0);
 

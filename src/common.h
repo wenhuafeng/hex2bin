@@ -19,13 +19,15 @@
 
 extern const char *Pgm_Name;
 
-extern uint8_t Checksum;
+//extern uint8_t Checksum;
 extern unsigned int Record_Nb;
 extern unsigned int Nb_Bytes;
 
 /* This will hold binary codes translated from hex file. */
-extern unsigned int Lowest_Address, Highest_Address;
-extern unsigned int Starting_Address, Phys_Addr;
+extern unsigned int Lowest_Address;
+extern unsigned int Highest_Address;
+extern unsigned int Starting_Address;
+extern unsigned int Phys_Addr;
 extern unsigned int Records_Start; // Lowest address of the records
 extern unsigned int Floor_Address;
 extern bool Verbose_Flag;
@@ -39,10 +41,10 @@ extern void GetLine(char *str, FILE *in);
 extern void GetFilename(char *dest, char *src);
 extern void PutExtension(char *Flnm, char *Extension);
 
-extern void VerifyChecksumValue(void);
+extern void VerifyChecksumValue(uint8_t cs);
 extern void VerifyRangeFloorCeil(void);
 extern void Allocate_Memory_And_Rewind(void);
-extern char *ReadDataBytes(char *p);
+extern char *ReadDataBytes(char *p, uint8_t *cs);
 extern void WriteOutFile(void);
 extern void ParseOptions(int argc, char *argv[]);
 
