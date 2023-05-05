@@ -12,15 +12,8 @@ command = 'hex2bin.exe adc.hex'
 target_file = 'adc.bin'
 
 """
-makefile build support define
+common functions
 """
-def build():
-    os.system('make clean')
-    os.system('make')
-
-def build_clean():
-    os.system('make clean')
-
 def cp_build_file(source, target):
     assert not os.path.isabs(source)
 
@@ -48,6 +41,16 @@ def run_exe():
     print('\r')
     print('checksum: 0x' + cs)
     print(os.getcwd()) # 获得当前工作目录
+
+"""
+makefile build support define
+"""
+def build():
+    os.system('make clean')
+    os.system('make')
+
+def build_clean():
+    os.system('make clean')
 
 def makefile_build():
     # 进入src目录
@@ -103,6 +106,9 @@ def cmake_build():
 
     run_exe()
 
+"""
+main function
+"""
 def main(para):
     if para == 'makefile':
         makefile_build()
