@@ -1,6 +1,7 @@
 import os
 import sys
 import shutil
+import datetime
 
 makefile_hex2bin = 'src/hex2bin.exe'
 makefile_mot2bin = 'src/mot2bin.exe'
@@ -80,21 +81,31 @@ cmake build support define
 cmake_hex2bin = 'build/hex2bin.exe'
 cmake_mot2bin = 'build/mot2bin.exe'
 
-MKDIR_BUILD_DIR = 'mkdir build'
 BUILD_DIR       = './build'
 CMAKE_COMMAND   = 'cmake -G"MinGW Makefiles" ../'
 MAKE_CLEAN      = 'make clean'
 MAKE            = 'make -j8'
 
-def cbuild():
-    os.system(MKDIR_BUILD_DIR)
+def delete_build_folder():
+    dir_path = BUILD_DIR
+    try:
+        shutil.rmtree(dir_path)
+    except OSError as e:
+        print("Error:%s:%s" % (dir_path, e.strerror))
+
+def create_build_folder():
+    path = BUILD_DIR
+    if not os.path.exists(path):
+        os.mkdir(path)
+
+def cmk_build():
     os.chdir(BUILD_DIR)
     os.system(CMAKE_COMMAND)
     os.system(MAKE_CLEAN)
     os.system(MAKE)
 
 def cmake_build():
-    cbuild()
+    cmk_build()
 
     # 切换到上级目录
     current_dir = os.path.abspath(__file__)
@@ -110,12 +121,20 @@ def cmake_build():
 main function
 """
 def main(para):
+    print("build project!")
+    start = datetime.datetime.now()
+
     if para == 'makefile':
         makefile_build()
     elif para == 'cmake':
+        delete_build_folder()
+        create_build_folder()
         cmake_build()
     else:
         print('input para error!\n')
+
+    end = datetime.datetime.now()
+    print('run time: %s second' %(end - start))
 
 if __name__ == "__main__":
     main(sys.argv[1])

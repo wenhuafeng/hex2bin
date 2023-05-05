@@ -466,7 +466,7 @@ int main(int argc, char *argv[])
      At the end of the input file, this value will be the highest address. */
     Lowest_Address = (unsigned int)-1;
     Highest_Address = 0;
-    Records_Start = 0;
+    //Records_Start = 0;
     //Segment = 0;
     //Upper_Address = 0;
     //Record_Nb = 0; // Used for reporting errors
