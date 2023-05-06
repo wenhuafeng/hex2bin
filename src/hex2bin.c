@@ -53,24 +53,133 @@
   20160923 JP: added code for checking filename length
   20170418 Simone Fratini: added option -t and -T to obtain shorter binary files
 */
-
-#define PROGRAM "hex2bin"
-#define VERSION "2.5"
-
 #include <string.h>
 #include "common.h"
 #include "checksum.h"
+
+#define PROGRAM "hex2bin"
+#define VERSION "2.5"
 
 #define NO_ADDRESS_TYPE_SELECTED 0
 #define LINEAR_ADDRESS 1
 #define SEGMENTED_ADDRESS 2
 
 const char *Pgm_Name = PROGRAM;
-
 unsigned int Seg_Lin_Select = NO_ADDRESS_TYPE_SELECTED;
 
+static void address_zero(unsigned int nb_bytes, unsigned int first_Word, unsigned int segment, unsigned int upper_address)
+{
+    unsigned int Address;
+    unsigned int temp;
 
-void get_highest_and_lowest_addresses(char *line)
+    if (nb_bytes == 0) {
+        return;
+    }
+
+    Address = first_Word;
+
+    if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
+        Phys_Addr = (segment << 4) + Address;
+    } else {
+        /* LINEAR_ADDRESS or NO_ADDRESS_TYPE_SELECTED
+            upper_address = 0 as specified in the Intel spec. until an extended address
+            record is read. */
+        Phys_Addr = ((upper_address << 16) + Address);
+    }
+
+    if (Verbose_Flag) {
+        fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
+    }
+
+    /* Floor address */
+    if (floor_address() == false) {
+        return;
+    }
+
+    /* Set the lowest address as base pointer. */
+    if (Phys_Addr < Lowest_Address) {
+        Lowest_Address = Phys_Addr;
+    }
+
+    /* Same for the top address. */
+    temp = Phys_Addr + nb_bytes - 1;
+
+    /* Ceiling address */
+    if (ceiling_address(temp) == false) {
+        return;
+    }
+    if (temp > Highest_Address) {
+        Highest_Address = temp;
+    }
+    if (Verbose_Flag) {
+        fprintf(stderr, "Highest_Address: %08X\n", Highest_Address);
+    }
+}
+
+static void address_two(char *p, unsigned int *segment, uint16_t record_nb)
+{
+    int result;
+    unsigned int temp2;
+
+    /* First_Word contains the offset. It's supposed to be 0000 so
+        we ignore it. */
+
+    /* First extended segment address record ? */
+    if (Seg_Lin_Select == NO_ADDRESS_TYPE_SELECTED) {
+        Seg_Lin_Select = SEGMENTED_ADDRESS;
+    }
+
+    /* Then ignore subsequent extended linear address records */
+    if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
+        result = sscanf(p, "%4x%2x", segment, &temp2);
+        if (result != 2) {
+            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+        }
+
+        if (Verbose_Flag) {
+            fprintf(stderr, "Extended Segment Address record: %04X\n", *segment);
+        }
+
+        /* Update the current address. */
+        Phys_Addr = (*segment << 4);
+    } else {
+        fprintf(stderr, "Ignored extended linear address record %d\n", record_nb);
+    }
+}
+
+static void address_four(char *p, unsigned int *upper_address, uint16_t record_nb)
+{
+    int result;
+    unsigned int temp2;
+
+    /* First_Word contains the offset. It's supposed to be 0000 sowe ignore it. */
+    /* First extended linear address record ? */
+    if (Seg_Lin_Select == NO_ADDRESS_TYPE_SELECTED) {
+        Seg_Lin_Select = LINEAR_ADDRESS;
+    }
+
+    /* Then ignore subsequent extended segment address records */
+    if (Seg_Lin_Select == LINEAR_ADDRESS) {
+        result = sscanf(p, "%4x%2x", upper_address, &temp2);
+        if (result != 2) {
+            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+        }
+        if (Verbose_Flag) {
+            fprintf(stderr, "Extended Linear Address record: %04X\n", *upper_address);
+        }
+
+        /* Update the current address. */
+        Phys_Addr = (*upper_address << 16);
+
+        if (Verbose_Flag) {
+            fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
+        }
+    } else {
+        fprintf(stderr, "Ignored extended segment address record %d\n", record_nb);
+    }
+}
+
+static void get_highest_and_lowest_addresses(char *line)
 {
     unsigned int i;
     FILE *fileIn = NULL;
@@ -79,11 +188,9 @@ void get_highest_and_lowest_addresses(char *line)
     unsigned int Type;
     uint8_t Data_Str[MAX_LINE_SIZE];
     char *p;
-    unsigned int Address;
+
     unsigned int Segment = 0x00;
     unsigned int Upper_Address = 0x00;
-    unsigned int temp;
-    unsigned int temp2;
     uint16_t Record_Nb = 0;
     unsigned int Nb_Bytes = 0;
 
@@ -97,147 +204,57 @@ void get_highest_and_lowest_addresses(char *line)
         /* Remove carriage return/line feed at the end of line. */
         i = strlen(line);
 
-        if (--i != 0) {
-            if (line[i] == '\n')
-                line[i] = '\0';
+        if (--i == 0) {
+            continue;
+        }
 
-            /* Scan the first two bytes and nb of bytes.
-               The two bytes are read in First_Word since its use depend on the
-               record type: if it's an extended address record or a data record.
-               */
-            result = sscanf(line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
-            if (result != 4)
-                fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
+        if (line[i] == '\n') {
+            line[i] = '\0';
+        }
 
-            p = (char *)Data_Str;
+        /* Scan the first two bytes and nb of bytes.
+            The two bytes are read in First_Word since its use depend on the
+            record type: if it's an extended address record or a data record.
+            */
+        result = sscanf(line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
+        if (result != 4) {
+            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
+        }
 
-            /* If we're reading the last record, ignore it. */
-            switch (Type) {
-                /* Data record */
-                case 0:
-                    if (Nb_Bytes == 0) {
-                        break;
-                    }
+        p = (char *)Data_Str;
 
-                    Address = First_Word;
-
-                    if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
-                        Phys_Addr = (Segment << 4) + Address;
-                    } else {
-                        /* LINEAR_ADDRESS or NO_ADDRESS_TYPE_SELECTED
-                           Upper_Address = 0 as specified in the Intel spec. until an extended address
-                           record is read. */
-                        Phys_Addr = ((Upper_Address << 16) + Address);
-                    }
-
-                    if (Verbose_Flag) {
-                        fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
-                    }
-
-                    /* Floor address */
-                    if (floor_address() == false) {
-                        break;
-                    }
-
-                    /* Set the lowest address as base pointer. */
-                    if (Phys_Addr < Lowest_Address) {
-                        Lowest_Address = Phys_Addr;
-                    }
-
-                    /* Same for the top address. */
-                    temp = Phys_Addr + Nb_Bytes - 1;
-
-                    /* Ceiling address */
-                    if (ceiling_address(temp) == false) {
-                        break;
-                    }
-                    if (temp > Highest_Address) {
-                        Highest_Address = temp;
-                    }
-                    if (Verbose_Flag) {
-                        fprintf(stderr, "Highest_Address: %08X\n", Highest_Address);
-                    }
-                    break;
-
-                case 1:
-                    if (Verbose_Flag) {
-                        fprintf(stderr, "End of File record\n");
-                    }
-                    break;
-
-                case 2:
-                    /* First_Word contains the offset. It's supposed to be 0000 so
-                       we ignore it. */
-
-                    /* First extended segment address record ? */
-                    if (Seg_Lin_Select == NO_ADDRESS_TYPE_SELECTED) {
-                        Seg_Lin_Select = SEGMENTED_ADDRESS;
-                    }
-
-                    /* Then ignore subsequent extended linear address records */
-                    if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
-                        result = sscanf(p, "%4x%2x", &Segment, &temp2);
-                        if (result != 2) {
-                            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
-                        }
-
-                        if (Verbose_Flag) {
-                            fprintf(stderr, "Extended Segment Address record: %04X\n", Segment);
-                        }
-
-                        /* Update the current address. */
-                        Phys_Addr = (Segment << 4);
-                    } else {
-                        fprintf(stderr, "Ignored extended linear address record %d\n", Record_Nb);
-                    }
-                    break;
-
-                case 3:
-                    if (Verbose_Flag) {
-                        fprintf(stderr, "Start Segment Address record: ignored\n");
-                    }
-                    break;
-
-                case 4:
-                    /* First_Word contains the offset. It's supposed to be 0000 sowe ignore it. */
-
-                    /* First extended linear address record ? */
-                    if (Seg_Lin_Select == NO_ADDRESS_TYPE_SELECTED)
-                        Seg_Lin_Select = LINEAR_ADDRESS;
-
-                    /* Then ignore subsequent extended segment address records */
-                    if (Seg_Lin_Select == LINEAR_ADDRESS) {
-                        result = sscanf(p, "%4x%2x", &Upper_Address, &temp2);
-                        if (result != 2) {
-                            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
-                        }
-                        if (Verbose_Flag) {
-                            fprintf(stderr, "Extended Linear Address record: %04X\n", Upper_Address);
-                        }
-
-                        /* Update the current address. */
-                        Phys_Addr = (Upper_Address << 16);
-
-                        if (Verbose_Flag) {
-                            fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
-                        }
-                    } else {
-                        fprintf(stderr, "Ignored extended segment address record %d\n", Record_Nb);
-                    }
-                    break;
-
-                case 5:
-                    if (Verbose_Flag) {
-                        fprintf(stderr, "Start Linear Address record: ignored\n");
-                    }
-                    break;
-
-                default:
-                    if (Verbose_Flag) {
-                        fprintf(stderr, "Unknown record type: %d at %d\n", Type, Record_Nb);
-                    }
-                    break;
-            }
+        /* If we're reading the last record, ignore it. */
+        switch (Type) {
+            /* Data record */
+            case 0:
+                address_zero(Nb_Bytes, First_Word, Segment, Upper_Address);
+                break;
+            case 1:
+                if (Verbose_Flag) {
+                    fprintf(stderr, "End of File record\n");
+                }
+                break;
+            case 2:
+                address_two(p, &Segment, Record_Nb);
+                break;
+            case 3:
+                if (Verbose_Flag) {
+                    fprintf(stderr, "Start Segment Address record: ignored\n");
+                }
+                break;
+            case 4:
+                address_four(p, &Upper_Address, Record_Nb);
+                break;
+            case 5:
+                if (Verbose_Flag) {
+                    fprintf(stderr, "Start Linear Address record: ignored\n");
+                }
+                break;
+            default:
+                if (Verbose_Flag) {
+                    fprintf(stderr, "Unknown record type: %d at %d\n", Type, Record_Nb);
+                }
+                break;
         }
     } while (!feof(fileIn));
 }
@@ -250,7 +267,116 @@ static void VerifyChecksumValue(uint8_t cs, uint16_t record_nb)
     }
 }
 
-void read_file_process_lines(uint8_t *memory_block, char *line)
+static void lines_zero(char *p, uint8_t *memory_block, uint8_t *cs, unsigned int first_Word, unsigned int nb_bytes,
+    unsigned int upper_address, unsigned int segment, unsigned int offset, uint16_t record_nb)
+{
+    int result;
+    unsigned int Address;
+    unsigned int temp2;
+
+    if (nb_bytes == 0) {
+        fprintf(stderr, "0 byte length Data record ignored\n");
+        return;
+    }
+
+    Address = first_Word;
+
+    if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
+        Phys_Addr = (segment << 4) + Address;
+    } else {
+        /* LINEAR_ADDRESS or NO_ADDRESS_TYPE_SELECTED
+            Upper_Address = 0 as specified in the Intel spec. until an extended address
+            record is read. */
+        if (GetAddressAlignmentWord()) {
+            Phys_Addr = ((upper_address << 16) + (Address << 1)) + offset;
+        } else {
+            Phys_Addr = ((upper_address << 16) + Address);
+        }
+    }
+
+    /* Check that the physical address stays in the buffer's range. */
+    if ((Phys_Addr >= Lowest_Address) && (Phys_Addr <= Highest_Address)) {
+        /* The memory block begins at Lowest_Address */
+        Phys_Addr -= Lowest_Address;
+
+        p = ReadDataBytes(p, memory_block, cs, record_nb, nb_bytes);
+
+        /* Read the checksum value. */
+        result = sscanf(p, "%2x", &temp2);
+        if (result != 1) {
+            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+        }
+
+        /* Verify checksum value. */
+        *cs = (*cs + temp2) & 0xFF;
+        VerifyChecksumValue(*cs, record_nb);
+    } else {
+        if (Seg_Lin_Select == SEGMENTED_ADDRESS)
+            fprintf(stderr, "Data record skipped at %4X:%4X\n", segment, Address);
+        else
+            fprintf(stderr, "Data record skipped at %8X\n", Phys_Addr);
+    }
+}
+
+static void lines_two(char *p, unsigned int *segment, uint8_t *cs, uint16_t record_nb)
+{
+    int result;
+    unsigned int temp2;
+
+    /* First_Word contains the offset. It's supposed to be 0000 so we ignore it. */
+    /* First extended segment address record ? */
+    if (Seg_Lin_Select == NO_ADDRESS_TYPE_SELECTED) {
+        Seg_Lin_Select = SEGMENTED_ADDRESS;
+    }
+
+    /* Then ignore subsequent extended linear address records */
+    if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
+        result = sscanf(p, "%4x%2x", segment, &temp2);
+        if (result != 2) {
+            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+        }
+
+        /* Update the current address. */
+        Phys_Addr = (*segment << 4);
+
+        /* Verify checksum value. */
+        *cs = (*cs + (*segment >> 8) + (*segment & 0xFF) + temp2) & 0xFF;
+        VerifyChecksumValue(*cs, record_nb);
+    }
+}
+
+static void lines_four(char *p, uint8_t *cs, unsigned int *upper_address, unsigned int *offset, uint16_t record_nb)
+{
+    int result;
+    unsigned int temp2;
+
+    /* First_Word contains the offset. It's supposed to be 0000 so we ignore it. */
+    if (GetAddressAlignmentWord()) {
+        sscanf(p, "%4x", offset);
+        *offset = *offset << 16;
+        *offset -= Lowest_Address;
+    }
+    /* First extended linear address record ? */
+    if (Seg_Lin_Select == NO_ADDRESS_TYPE_SELECTED)
+        Seg_Lin_Select = LINEAR_ADDRESS;
+
+    /* Then ignore subsequent extended segment address records */
+    if (Seg_Lin_Select == LINEAR_ADDRESS) {
+        result = sscanf(p, "%4x%2x", upper_address, &temp2);
+        if (result != 2) {
+            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+        }
+
+        /* Update the current address. */
+        Phys_Addr = (*upper_address << 16);
+
+        /* Verify checksum value. */
+        *cs = (*cs + (*upper_address >> 8) + (*upper_address & 0xFF) + temp2) & 0xFF;
+        VerifyChecksumValue(*cs, record_nb);
+    }
+}
+
+static void read_file_process_lines(uint8_t *memory_block, char *line)
 {
     unsigned int i;
     FILE *fileIn = NULL;
@@ -259,10 +385,10 @@ void read_file_process_lines(uint8_t *memory_block, char *line)
     unsigned int Type;
     uint8_t Data_Str[MAX_LINE_SIZE];
     char *p;
-    unsigned int Address;
+
     unsigned int Segment = 0x00;
     unsigned int Upper_Address = 0x00;
-    unsigned int temp2;
+
     unsigned int Offset = 0x00;
     uint8_t Checksum = 0;
     uint16_t Record_Nb = 0;
@@ -280,143 +406,57 @@ void read_file_process_lines(uint8_t *memory_block, char *line)
 
         // fprintf(stderr,"Record: %d; length: %d\n", Record_Nb, i);
 
-        if (--i != 0) {
-            if (line[i] == '\n')
-                line[i] = '\0';
+        if (--i == 0) {
+            continue;
+        }
+        if (line[i] == '\n') {
+            line[i] = '\0';
+        }
 
-            /* Scan the first two bytes and nb of bytes.
-               The two bytes are read in First_Word since its use depend on the
-               record type: if it's an extended address record or a data record.
-            */
-            result = sscanf(line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
-            if (result != 4) {
-                fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
-            }
+        /* Scan the first two bytes and nb of bytes.
+            The two bytes are read in First_Word since its use depend on the
+            record type: if it's an extended address record or a data record.
+        */
+        result = sscanf(line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
+        if (result != 4) {
+            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
+        }
 
-            Checksum = Nb_Bytes + (First_Word >> 8) + (First_Word & 0xFF) + Type;
+        Checksum = Nb_Bytes + (First_Word >> 8) + (First_Word & 0xFF) + Type;
 
-            p = (char *)Data_Str;
+        p = (char *)Data_Str;
 
-            /* If we're reading the last record, ignore it. */
-            switch (Type) {
-                /* Data record */
-                case 0:
-                    if (Nb_Bytes == 0) {
-                        fprintf(stderr, "0 byte length Data record ignored\n");
-                        break;
-                    }
-
-                    Address = First_Word;
-
-                    if (Seg_Lin_Select == SEGMENTED_ADDRESS)
-                        Phys_Addr = (Segment << 4) + Address;
-                    else
-                        /* LINEAR_ADDRESS or NO_ADDRESS_TYPE_SELECTED
-                           Upper_Address = 0 as specified in the Intel spec. until an extended address
-                           record is read. */
-                    if (GetAddressAlignmentWord()) {
-                        Phys_Addr = ((Upper_Address << 16) + (Address << 1)) + Offset;
-                    } else {
-                        Phys_Addr = ((Upper_Address << 16) + Address);
-                    }
-
-                    /* Check that the physical address stays in the buffer's range. */
-                    if ((Phys_Addr >= Lowest_Address) && (Phys_Addr <= Highest_Address)) {
-                        /* The memory block begins at Lowest_Address */
-                        Phys_Addr -= Lowest_Address;
-
-                        p = ReadDataBytes(p, memory_block, &Checksum, Record_Nb, Nb_Bytes);
-
-                        /* Read the checksum value. */
-                        result = sscanf(p, "%2x", &temp2);
-                        if (result != 1)
-                            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
-
-                        /* Verify checksum value. */
-                        Checksum = (Checksum + temp2) & 0xFF;
-                        VerifyChecksumValue(Checksum, Record_Nb);
-                    } else {
-                        if (Seg_Lin_Select == SEGMENTED_ADDRESS)
-                            fprintf(stderr, "Data record skipped at %4X:%4X\n", Segment, Address);
-                        else
-                            fprintf(stderr, "Data record skipped at %8X\n", Phys_Addr);
-                    }
-
-                    break;
-
-                /* End of file record */
-                case 1:
-                    /* Simply ignore checksum errors in this line. */
-                    break;
-
-                /* Extended segment address record */
-                case 2:
-                    /* First_Word contains the offset. It's supposed to be 0000 so
-                       we ignore it. */
-
-                    /* First extended segment address record ? */
-                    if (Seg_Lin_Select == NO_ADDRESS_TYPE_SELECTED)
-                        Seg_Lin_Select = SEGMENTED_ADDRESS;
-
-                    /* Then ignore subsequent extended linear address records */
-                    if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
-                        result = sscanf(p, "%4x%2x", &Segment, &temp2);
-                        if (result != 2)
-                            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
-
-                        /* Update the current address. */
-                        Phys_Addr = (Segment << 4);
-
-                        /* Verify checksum value. */
-                        Checksum = (Checksum + (Segment >> 8) + (Segment & 0xFF) + temp2) & 0xFF;
-                        VerifyChecksumValue(Checksum, Record_Nb);
-                    }
-                    break;
-
-                /* Start segment address record */
-                case 3:
-                    /* Nothing to be done since it's for specifying the starting address for
-                       execution of the binary code */
-                    break;
-
-                /* Extended linear address record */
-                case 4:
-                    /* First_Word contains the offset. It's supposed to be 0000 so
-                       we ignore it. */
-
-                    if (GetAddressAlignmentWord()) {
-                        sscanf(p, "%4x", &Offset);
-                        Offset = Offset << 16;
-                        Offset -= Lowest_Address;
-                    }
-                    /* First extended linear address record ? */
-                    if (Seg_Lin_Select == NO_ADDRESS_TYPE_SELECTED)
-                        Seg_Lin_Select = LINEAR_ADDRESS;
-
-                    /* Then ignore subsequent extended segment address records */
-                    if (Seg_Lin_Select == LINEAR_ADDRESS) {
-                        result = sscanf(p, "%4x%2x", &Upper_Address, &temp2);
-                        if (result != 2)
-                            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
-
-                        /* Update the current address. */
-                        Phys_Addr = (Upper_Address << 16);
-
-                        /* Verify checksum value. */
-                        Checksum = (Checksum + (Upper_Address >> 8) + (Upper_Address & 0xFF) + temp2) & 0xFF;
-                        VerifyChecksumValue(Checksum, Record_Nb);
-                    }
-                    break;
-
-                /* Start linear address record */
-                case 5:
-                    /* Nothing to be done since it's for specifying the starting address for
-                       execution of the binary code */
-                    break;
-                default:
-                    fprintf(stderr, "Unknown record type\n");
-                    break;
-            }
+        /* If we're reading the last record, ignore it. */
+        switch (Type) {
+            /* Data record */
+            case 0:
+                lines_zero(p, memory_block, &Checksum, First_Word, Nb_Bytes, Upper_Address, Segment, Offset, Record_Nb);
+                break;
+            /* End of file record */
+            case 1:
+                /* Simply ignore checksum errors in this line. */
+                break;
+            /* Extended segment address record */
+            case 2:
+                lines_two(p, &Segment, &Checksum, Record_Nb);
+                break;
+            /* Start segment address record */
+            case 3:
+                /* Nothing to be done since it's for specifying the starting address for
+                    execution of the binary code */
+                break;
+            /* Extended linear address record */
+            case 4:
+                lines_four(p, &Checksum, &Upper_Address, &Offset, Record_Nb);
+                break;
+            /* Start linear address record */
+            case 5:
+                /* Nothing to be done since it's for specifying the starting address for
+                    execution of the binary code */
+                break;
+            default:
+                fprintf(stderr, "Unknown record type\n");
+                break;
         }
     } while (!feof(fileIn));
 }
@@ -466,11 +506,6 @@ int main(int argc, char *argv[])
      At the end of the input file, this value will be the highest address. */
     Lowest_Address = (unsigned int)-1;
     Highest_Address = 0;
-    //Records_Start = 0;
-    //Segment = 0;
-    //Upper_Address = 0;
-    //Record_Nb = 0; // Used for reporting errors
-    //First_Word = 0;
 
     /* Check if are set Floor and Ceiling Address and range is coherent */
     VerifyRangeFloorCeil();

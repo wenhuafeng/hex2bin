@@ -22,7 +22,6 @@ extern const char *Pgm_Name;
 /* This will hold binary codes translated from hex file. */
 extern unsigned int Lowest_Address;
 extern unsigned int Highest_Address;
-//extern unsigned int Starting_Address;
 extern unsigned int Phys_Addr;
 extern bool Verbose_Flag;
 
@@ -43,13 +42,10 @@ extern void WriteOutFile(uint8_t **memory_block);
 extern void ParseOptions(int argc, char *argv[]);
 
 extern FILE *GetInFile(void);
-//extern bool GetFloorAddressSetted(void);
-//extern bool GetCeilingAddressSetted(void);
 extern bool GetAddressAlignmentWord(void);
 extern bool GetStatusChecksumError(void);
 extern void SetStatusChecksumError(bool value);
 extern bool GetEnableChecksumError(void);
-//extern unsigned int GetCeilingAddress(void);
 extern int GetPadByte(void);
 extern bool floor_address(void);
 extern bool ceiling_address(unsigned int temp);
