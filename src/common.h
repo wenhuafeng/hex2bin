@@ -18,6 +18,7 @@
 #define MAX_LINE_SIZE 1024
 
 extern const char *Pgm_Name;
+extern FILE *fp;
 
 /* This will hold binary codes translated from hex file. */
 extern unsigned int Lowest_Address;
@@ -25,8 +26,8 @@ extern unsigned int Highest_Address;
 extern unsigned int Phys_Addr;
 extern bool Verbose_Flag;
 
-extern void usage(void);
-extern void NoFailOpenInputFile(char *Flnm);
+extern void usage(const char *func, unsigned int line);
+extern bool NoFailOpenInputFile(char *Flnm);
 extern void NoFailCloseInputFile(char *Flnm);
 extern void NoFailOpenOutputFile(char *Flnm);
 extern void NoFailCloseOutputFile(char *Flnm);

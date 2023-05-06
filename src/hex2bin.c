@@ -38,7 +38,7 @@
 
   20120125 Danny Schneider:
   Added code for filling a binary file to a given max_length relative to
-  Starting Address if Max-Address is larger than Highest-Address
+  Starting address if Max-address is larger than Highest-address
   20120509 Yoshimasa Nakane:
   modified error checking (also for output file, JP)
   20141005 JP: added support for byte swapped hex files
@@ -58,7 +58,7 @@
 #include "checksum.h"
 
 #define PROGRAM "hex2bin"
-#define VERSION "2.5"
+#define VERSION "3.0"
 
 #define NO_ADDRESS_TYPE_SELECTED 0
 #define LINEAR_ADDRESS 1
@@ -69,26 +69,26 @@ unsigned int Seg_Lin_Select = NO_ADDRESS_TYPE_SELECTED;
 
 static void address_zero(unsigned int nb_bytes, unsigned int first_Word, unsigned int segment, unsigned int upper_address)
 {
-    unsigned int Address;
+    unsigned int address;
     unsigned int temp;
 
     if (nb_bytes == 0) {
         return;
     }
 
-    Address = first_Word;
+    address = first_Word;
 
     if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
-        Phys_Addr = (segment << 4) + Address;
+        Phys_Addr = (segment << 4) + address;
     } else {
         /* LINEAR_ADDRESS or NO_ADDRESS_TYPE_SELECTED
             upper_address = 0 as specified in the Intel spec. until an extended address
             record is read. */
-        Phys_Addr = ((upper_address << 16) + Address);
+        Phys_Addr = ((upper_address << 16) + address);
     }
 
     if (Verbose_Flag) {
-        fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
+        fprintf(fp, "Physical address: %08X\n", Phys_Addr);
     }
 
     /* Floor address */
@@ -112,7 +112,7 @@ static void address_zero(unsigned int nb_bytes, unsigned int first_Word, unsigne
         Highest_Address = temp;
     }
     if (Verbose_Flag) {
-        fprintf(stderr, "Highest_Address: %08X\n", Highest_Address);
+        fprintf(fp, "Highest_Address: %08X\n", Highest_Address);
     }
 }
 
@@ -133,17 +133,17 @@ static void address_two(char *p, unsigned int *segment, uint16_t record_nb)
     if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
         result = sscanf(p, "%4x%2x", segment, &temp2);
         if (result != 2) {
-            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+            fprintf(fp, "Error in line %d of hex file\n", record_nb);
         }
 
         if (Verbose_Flag) {
-            fprintf(stderr, "Extended Segment Address record: %04X\n", *segment);
+            fprintf(fp, "Extended Segment address record: %04X\n", *segment);
         }
 
         /* Update the current address. */
         Phys_Addr = (*segment << 4);
     } else {
-        fprintf(stderr, "Ignored extended linear address record %d\n", record_nb);
+        fprintf(fp, "Ignored extended linear address record %d\n", record_nb);
     }
 }
 
@@ -162,20 +162,20 @@ static void address_four(char *p, unsigned int *upper_address, uint16_t record_n
     if (Seg_Lin_Select == LINEAR_ADDRESS) {
         result = sscanf(p, "%4x%2x", upper_address, &temp2);
         if (result != 2) {
-            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+            fprintf(fp, "Error in line %d of hex file\n", record_nb);
         }
         if (Verbose_Flag) {
-            fprintf(stderr, "Extended Linear Address record: %04X\n", *upper_address);
+            fprintf(fp, "Extended Linear address record: %04X\n", *upper_address);
         }
 
         /* Update the current address. */
         Phys_Addr = (*upper_address << 16);
 
         if (Verbose_Flag) {
-            fprintf(stderr, "Physical Address: %08X\n", Phys_Addr);
+            fprintf(fp, "Physical address: %08X\n", Phys_Addr);
         }
     } else {
-        fprintf(stderr, "Ignored extended segment address record %d\n", record_nb);
+        fprintf(fp, "Ignored extended segment address record %d\n", record_nb);
     }
 }
 
@@ -218,7 +218,7 @@ static void get_highest_and_lowest_addresses(char *line)
             */
         result = sscanf(line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
         if (result != 4) {
-            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
+            fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
         }
 
         p = (char *)Data_Str;
@@ -231,7 +231,7 @@ static void get_highest_and_lowest_addresses(char *line)
                 break;
             case 1:
                 if (Verbose_Flag) {
-                    fprintf(stderr, "End of File record\n");
+                    fprintf(fp, "End of File record\n");
                 }
                 break;
             case 2:
@@ -239,7 +239,7 @@ static void get_highest_and_lowest_addresses(char *line)
                 break;
             case 3:
                 if (Verbose_Flag) {
-                    fprintf(stderr, "Start Segment Address record: ignored\n");
+                    fprintf(fp, "Start Segment address record: ignored\n");
                 }
                 break;
             case 4:
@@ -247,12 +247,12 @@ static void get_highest_and_lowest_addresses(char *line)
                 break;
             case 5:
                 if (Verbose_Flag) {
-                    fprintf(stderr, "Start Linear Address record: ignored\n");
+                    fprintf(fp, "Start Linear address record: ignored\n");
                 }
                 break;
             default:
                 if (Verbose_Flag) {
-                    fprintf(stderr, "Unknown record type: %d at %d\n", Type, Record_Nb);
+                    fprintf(fp, "Unknown record type: %d at %d\n", Type, Record_Nb);
                 }
                 break;
         }
@@ -262,7 +262,7 @@ static void get_highest_and_lowest_addresses(char *line)
 static void VerifyChecksumValue(uint8_t cs, uint16_t record_nb)
 {
     if ((cs != 0) && GetEnableChecksumError()) {
-        fprintf(stderr, "checksum error in record %d: should be %02X\n", record_nb, (256 - cs) & 0xFF);
+        fprintf(fp, "checksum error in record %d: should be %02X\n", record_nb, (256 - cs) & 0xFF);
         SetStatusChecksumError(true);
     }
 }
@@ -271,26 +271,26 @@ static void lines_zero(char *p, uint8_t *memory_block, uint8_t *cs, unsigned int
     unsigned int upper_address, unsigned int segment, unsigned int offset, uint16_t record_nb)
 {
     int result;
-    unsigned int Address;
+    unsigned int address;
     unsigned int temp2;
 
     if (nb_bytes == 0) {
-        fprintf(stderr, "0 byte length Data record ignored\n");
+        fprintf(fp, "0 byte length Data record ignored\n");
         return;
     }
 
-    Address = first_Word;
+    address = first_Word;
 
     if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
-        Phys_Addr = (segment << 4) + Address;
+        Phys_Addr = (segment << 4) + address;
     } else {
         /* LINEAR_ADDRESS or NO_ADDRESS_TYPE_SELECTED
             Upper_Address = 0 as specified in the Intel spec. until an extended address
             record is read. */
         if (GetAddressAlignmentWord()) {
-            Phys_Addr = ((upper_address << 16) + (Address << 1)) + offset;
+            Phys_Addr = ((upper_address << 16) + (address << 1)) + offset;
         } else {
-            Phys_Addr = ((upper_address << 16) + Address);
+            Phys_Addr = ((upper_address << 16) + address);
         }
     }
 
@@ -304,17 +304,18 @@ static void lines_zero(char *p, uint8_t *memory_block, uint8_t *cs, unsigned int
         /* Read the checksum value. */
         result = sscanf(p, "%2x", &temp2);
         if (result != 1) {
-            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+            fprintf(fp, "Error in line %d of hex file\n", record_nb);
         }
 
         /* Verify checksum value. */
         *cs = (*cs + temp2) & 0xFF;
         VerifyChecksumValue(*cs, record_nb);
     } else {
-        if (Seg_Lin_Select == SEGMENTED_ADDRESS)
-            fprintf(stderr, "Data record skipped at %4X:%4X\n", segment, Address);
-        else
-            fprintf(stderr, "Data record skipped at %8X\n", Phys_Addr);
+        if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
+            fprintf(fp, "Data record skipped at %4X:%4X\n", segment, address);
+        } else {
+            fprintf(fp, "Data record skipped at %8X\n", Phys_Addr);
+        }
     }
 }
 
@@ -333,7 +334,7 @@ static void lines_two(char *p, unsigned int *segment, uint8_t *cs, uint16_t reco
     if (Seg_Lin_Select == SEGMENTED_ADDRESS) {
         result = sscanf(p, "%4x%2x", segment, &temp2);
         if (result != 2) {
-            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+            fprintf(fp, "Error in line %d of hex file\n", record_nb);
         }
 
         /* Update the current address. */
@@ -364,7 +365,7 @@ static void lines_four(char *p, uint8_t *cs, unsigned int *upper_address, unsign
     if (Seg_Lin_Select == LINEAR_ADDRESS) {
         result = sscanf(p, "%4x%2x", upper_address, &temp2);
         if (result != 2) {
-            fprintf(stderr, "Error in line %d of hex file\n", record_nb);
+            fprintf(fp, "Error in line %d of hex file\n", record_nb);
         }
 
         /* Update the current address. */
@@ -404,7 +405,7 @@ static void read_file_process_lines(uint8_t *memory_block, char *line)
         /* Remove carriage return/line feed at the end of line. */
         i = strlen(line);
 
-        // fprintf(stderr,"Record: %d; length: %d\n", Record_Nb, i);
+        // fprintf(fp,"Record: %d; length: %d\n", Record_Nb, i);
 
         if (--i == 0) {
             continue;
@@ -419,7 +420,7 @@ static void read_file_process_lines(uint8_t *memory_block, char *line)
         */
         result = sscanf(line, ":%2x%4x%2x%s", &Nb_Bytes, &First_Word, &Type, Data_Str);
         if (result != 4) {
-            fprintf(stderr, "Error in line %d of hex file\n", Record_Nb);
+            fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
         }
 
         Checksum = Nb_Bytes + (First_Word >> 8) + (First_Word & 0xFF) + Type;
@@ -455,7 +456,7 @@ static void read_file_process_lines(uint8_t *memory_block, char *line)
                     execution of the binary code */
                 break;
             default:
-                fprintf(stderr, "Unknown record type\n");
+                fprintf(fp, "Unknown record type\n");
                 break;
         }
     } while (!feof(fileIn));
@@ -471,10 +472,16 @@ int main(int argc, char *argv[])
     unsigned int Records_Start;
     uint8_t *Memory_Block = NULL;
 
-    fprintf(stdout, PROGRAM " v" VERSION ", Copyright (C) 2017 Jacques Pelletier & contributors\n\n");
+    fp = fopen("log.txt", "w"); // 打开文件，以追加模式写入
+    if (fp == NULL) {
+        printf("Failed to open file.\n");
+        return 1;
+    }
+
+    fprintf(fp, "software name: %s version: %s build_time: %s, %s\n\n", PROGRAM, VERSION, __TIME__, __DATE__);
 
     if (argc == 1) {
-        usage();
+        usage(__func__, __LINE__);
     }
 
     strcpy(Extension, "bin"); /* default is for binary file extension */
@@ -487,7 +494,9 @@ int main(int argc, char *argv[])
     GetFilename(Filename, argv[argc - 1]);
 
     /* Just a normal file name */
-    NoFailOpenInputFile(Filename);
+    if (NoFailOpenInputFile(Filename) == false) {
+        return 1;
+    }
     PutExtension(Filename, Extension);
     NoFailOpenOutputFile(Filename);
     //Fileread = true;
@@ -507,7 +516,7 @@ int main(int argc, char *argv[])
     Lowest_Address = (unsigned int)-1;
     Highest_Address = 0;
 
-    /* Check if are set Floor and Ceiling Address and range is coherent */
+    /* Check if are set Floor and Ceiling address and range is coherent */
     VerifyRangeFloorCeil();
 
     get_highest_and_lowest_addresses(Line);
@@ -520,10 +529,10 @@ int main(int argc, char *argv[])
     Allocate_Memory_And_Rewind(&Memory_Block);
     read_file_process_lines(Memory_Block, Line);
 
-    fprintf(stdout, "Binary file start = %08X\n", Lowest_Address);
-    fprintf(stdout, "Records start     = %08X\n", Records_Start);
-    fprintf(stdout, "Highest address   = %08X\n", Highest_Address);
-    fprintf(stdout, "Pad Byte          = %X\n", GetPadByte());
+    fprintf(fp, "Binary file start = 0x%08X\n", Lowest_Address);
+    fprintf(fp, "Records start     = 0x%08X\n", Records_Start);
+    fprintf(fp, "Highest address   = 0x%08X\n", Highest_Address);
+    fprintf(fp, "Pad Byte          = 0x%X\n\n", GetPadByte());
 
     WriteMemory(Memory_Block);
     WriteOutFile(&Memory_Block);
@@ -535,9 +544,10 @@ int main(int argc, char *argv[])
 
     NoFailCloseInputFile(NULL);
     NoFailCloseOutputFile(NULL);
+    fclose(fp); // 关闭文件
 
     if (GetStatusChecksumError() && GetEnableChecksumError()) {
-        fprintf(stderr, "checksum error detected.\n");
+        fprintf(fp, "checksum error detected.\n");
         return 1;
     }
 

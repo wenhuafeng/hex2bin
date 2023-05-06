@@ -1,0 +1,13 @@
+software name: hex2bin version: 3.0 build_time: 16:01:07, May  6 2023
+
+Allocate_Memory_and_Rewind:
+Lowest address:   = 0x08000000
+Highest address:  = 0x08003E87
+Starting address: = 0x08000000
+Max Length:       = 0x16008
+
+Binary file start = 0x08000000
+Records start     = 0x08000000
+Highest address   = 0x08003E87
+Pad Byte          = 0xFF
+

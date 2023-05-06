@@ -86,26 +86,29 @@ bool Verbose_Flag = false;
 unsigned int Lowest_Address;
 unsigned int Highest_Address;
 unsigned int Phys_Addr;
+FILE *fp = NULL;
 
 /* procedure USAGE */
-void usage(void)
+void usage(const char *func, unsigned int line)
 {
-    fprintf(stderr,
+    fprintf(fp,
         "\n"
         "usage: %s [OPTIONS] filename\n"
+        "func: %s\n"
+        "line: %d\n"
         "Options:\n"
-        "  -a            Address Alignment Word (hex2bin only)\n"
+        "  -a            address Alignment Word (hex2bin only)\n"
         "  -b            Batch mode: exits if specified file doesn't exist\n"
         "  -c            Enable record checksum verification\n"
         "  -C [Poly][Init][RefIn][RefOut][XorOut]\n                CRC parameters\n"
         "  -e [ext]      Output filename extension (without the dot)\n"
         "  -E [0|1]      Endian for checksum/CRC, 0: little, 1: big\n"
-        "  -f [address]  Address of check result to write\n"
-        "  -F [address] [value]\n                Address and value to force\n"
-        "  -k [0-5]      Select check method (checksum or CRC) and size\n"
+        "  -f [address]  address of check result to write\n"
+        "  -F [address] [value]\n                address and value to force\n"
+        "  -k [0-6]      Select check method (checksum or CRC) and size\n"
         "  -d            display list of check methods/value size\n"
-        "  -l [length]   Maximal Length (Starting address + Length -1 is Max Address)\n"
-        "                File will be filled with Pattern until Max Address is reached\n"
+        "  -l [length]   Maximal Length (Starting address + Length -1 is Max address)\n"
+        "                File will be filled with Pattern until Max address is reached\n"
         "  -m [size]     Minimum Block Size\n"
         "                File Size Dimension will be a multiple of Minimum block size\n"
         "                File will be filled with Pattern\n"
@@ -125,13 +128,13 @@ void usage(void)
         "  -T [address]  Ceiling address in hex (hex2bin only)\n"
         "  -v            Verbose messages for debugging purposes\n"
         "  -w            Swap wordwise (low <-> high)\n\n",
-        Pgm_Name, Pad_Byte);
+        Pgm_Name, func, line, Pad_Byte);
     exit(1);
 }
 
 static void DisplayCheckMethods(void)
 {
-    fprintf(stderr, "Check methods/value size:\n"
+    fprintf(fp, "Check methods/value size:\n"
         "0:  checksum  8-bit\n"
         "1:  checksum 16-bit (adds 16-bit words into a 16-bit sum, data and result BE or LE)\n"
         "2:  CRC8\n"
@@ -142,25 +145,29 @@ static void DisplayCheckMethods(void)
 }
 
 /* Open the input file, with error checking */
-void NoFailOpenInputFile(char *Flnm)
+bool NoFailOpenInputFile(char *Flnm)
 {
-    while ((Filin = fopen(Flnm, "r")) == NULL) {
+    Filin = fopen(Flnm, "r");
+    if (Filin == NULL) {
         if (Batch_Mode) {
-            fprintf(stderr, "Input file %s cannot be opened.\n", Flnm);
+            fprintf(fp, "Input file %s cannot be opened.\n", Flnm);
             exit(1);
         } else {
-            fprintf(stderr, "Input file %s cannot be opened. Enter new filename: ", Flnm);
+            fprintf(fp, "Input file %s cannot be opened. Enter new filename: ", Flnm);
             if (Flnm[strlen(Flnm) - 1] == '\n') {
                 Flnm[strlen(Flnm) - 1] = '\0';
             }
         }
+        return false;
     }
 
 #ifdef USE_FILE_BUFFERS
     FilinBuf = (char *)NoFailMalloc(BUFFSZ);
     setvbuf(Filin, FilinBuf, _IOFBF, BUFFSZ);
 #endif
-} /* procedure OPENFILIN */
+
+    return true;
+}
 
 void NoFailCloseInputFile(char *Flnm)
 {
@@ -172,12 +179,12 @@ void NoFailOpenOutputFile(char *Flnm)
 {
     while ((Filout = fopen(Flnm, "wb")) == NULL) {
         if (Batch_Mode) {
-            fprintf(stderr, "Output file %s cannot be opened.\n", Flnm);
+            fprintf(fp, "Output file %s cannot be opened.\n", Flnm);
             exit(1);
         } else {
             /* Failure to open the output file may be
              simply due to an insufficient permission setting. */
-            fprintf(stderr, "Output file %s cannot be opened. Enter new file name: ", Flnm);
+            fprintf(fp, "Output file %s cannot be opened. Enter new file name: ", Flnm);
             if (Flnm[strlen(Flnm) - 1] == '\n') {
                 Flnm[strlen(Flnm) - 1] = '\0';
             }
@@ -201,7 +208,7 @@ void GetLine(char *str, FILE *in)
 
     result = fgets(str, MAX_LINE_SIZE, in);
     if ((result == NULL) && !feof(in)) {
-        fprintf(stderr, "Error occurred while reading from file\n");
+        fprintf(fp, "Error occurred while reading from file\n");
     }
 }
 
@@ -216,7 +223,7 @@ static int GetDec(const char *str)
     if (result == 1) {
         return value;
     } else {
-        fprintf(stderr, "GetDec: some error occurred when parsing options.\n");
+        fprintf(fp, "GetDec: some error occurred when parsing options.\n");
         exit(1);
     }
 }
@@ -227,7 +234,7 @@ void GetFilename(char *dest, char *src)
     if (strlen(src) < MAX_FILE_NAME_SIZE) {
         strcpy(dest, src);
     } else {
-        fprintf(stderr, "filename length exceeds %d characters.\n", MAX_FILE_NAME_SIZE);
+        fprintf(fp, "filename length exceeds %d characters.\n", MAX_FILE_NAME_SIZE);
         exit(1);
     }
 }
@@ -235,7 +242,7 @@ void GetFilename(char *dest, char *src)
 static void GetExtension(const char *str, char *ext)
 {
     if (strlen(str) > MAX_EXTENSION_SIZE) {
-        usage();
+        usage(__func__, __LINE__);
     }
 
     strcpy(ext, str);
@@ -253,7 +260,7 @@ void PutExtension(char *Flnm, char *extension)
     if ((Period = strrchr(Flnm, '.')) != NULL) {
         *(Period) = '\0';
         if (strcmp(extension, Period + 1) == 0) {
-            fprintf(stderr, "Input and output filenames (%s) are the same.\n", Flnm);
+            fprintf(fp, "Input and output filenames (%s) are the same.\n", Flnm);
             exit(1);
         }
     }
@@ -261,11 +268,11 @@ void PutExtension(char *Flnm, char *extension)
     strcat(Flnm, extension);
 }
 
-/* Check if are set Floor and Ceiling Address and range is coherent */
+/* Check if are set Floor and Ceiling address and range is coherent */
 void VerifyRangeFloorCeil(void)
 {
     if (Floor_Address_Setted && Ceiling_Address_Setted && (Floor_Address >= Ceiling_Address)) {
-        fprintf(stderr, "Floor address %08X higher than Ceiling address %08X\n", Floor_Address, Ceiling_Address);
+        fprintf(fp, "Floor address %08X higher than Ceiling address %08X\n", Floor_Address, Ceiling_Address);
         exit(1);
     }
 }
@@ -284,11 +291,11 @@ void Allocate_Memory_And_Rewind(uint8_t **memory_block)
         Highest_Address = Lowest_Address + Max_Length - 1;
     }
 
-    fprintf(stdout, "Allocate_Memory_and_Rewind:\n");
-    fprintf(stdout, "Lowest address:   %08X\n", Lowest_Address);
-    fprintf(stdout, "Highest address:  %08X\n", Highest_Address);
-    fprintf(stdout, "Starting address: %08X\n", Starting_Address);
-    fprintf(stdout, "Max Length:       %u\n\n", Max_Length);
+    fprintf(fp, "Allocate_Memory_and_Rewind:\n");
+    fprintf(fp, "Lowest address:   = 0x%08X\n", Lowest_Address);
+    fprintf(fp, "Highest address:  = 0x%08X\n", Highest_Address);
+    fprintf(fp, "Starting address: = 0x%08X\n", Starting_Address);
+    fprintf(fp, "Max Length:       = 0x%u\n\n", Max_Length);
 
     /* Now that we know the buffer size, we can allocate it. */
     /* allocate a buffer */
@@ -312,7 +319,7 @@ char *ReadDataBytes(char *p, uint8_t *memory_block, uint8_t *cs, uint16_t record
     do {
         result = sscanf(p, "%2x", &temp2);
         if (result != 1) {
-            fprintf(stderr, "ReadDataBytes: error in line %d of hex file\n", record_nb);
+            fprintf(fp, "ReadDataBytes: error in line %d of hex file\n", record_nb);
         }
         p += 2;
 
@@ -321,11 +328,11 @@ char *ReadDataBytes(char *p, uint8_t *memory_block, uint8_t *cs, uint16_t record
             /* Overlapping record will erase the pad bytes */
             if (Swap_Wordwise) {
                 if (memory_block[Phys_Addr ^ 1] != Pad_Byte)
-                    fprintf(stderr, "Overlapped record detected\n");
+                    fprintf(fp, "Overlapped record detected\n");
                 memory_block[Phys_Addr++ ^ 1] = temp2;
             } else {
                 if (memory_block[Phys_Addr] != Pad_Byte)
-                    fprintf(stderr, "Overlapped record detected\n");
+                    fprintf(fp, "Overlapped record detected\n");
                 memory_block[Phys_Addr++] = temp2;
             }
 
@@ -358,13 +365,13 @@ void WriteOutFile(uint8_t **memory_block)
         fwrite(memory_block_new, Module, 1, Filout);
         free(memory_block_new);
         if (Max_Length_Setted == true) {
-            fprintf(stdout, "Attention Max Length changed by Minimum Block Size\n");
+            fprintf(fp, "Attention Max Length changed by Minimum Block Size\n");
         }
         // extended
         Max_Length += Module;
         Highest_Address += Module;
-        fprintf(stdout, "Extended\nHighest address: %08X\n", Highest_Address);
-        fprintf(stdout, "Max Length: %u\n\n", Max_Length);
+        fprintf(fp, "Extended\nHighest address: %08X\n", Highest_Address);
+        fprintf(fp, "Max Length: %u\n\n", Max_Length);
     }
 }
 
@@ -392,7 +399,7 @@ void ParseOptions(int argc, char *argv[])
         if (_IS_OPTION_(*p)) {
             // test for no space between option and parameter
             if (strlen(p) != 2) {
-                usage();
+                usage(__func__, __LINE__);
             }
 
             switch (c) {
@@ -433,7 +440,7 @@ void ParseOptions(int argc, char *argv[])
                 case 'l':
                     Max_Length = GetHex(argv[Param + 1]);
                     if (Max_Length > 0x800000) {
-                        fprintf(stderr, "Max_Length = %u\n", Max_Length);
+                        fprintf(fp, "Max_Length = %u\n", Max_Length);
                         exit(1);
                     }
                     Max_Length_Setted = true;
@@ -483,22 +490,23 @@ void ParseOptions(int argc, char *argv[])
                 case '?':
                 case 'h':
                 default:
-                    usage();
+                    usage(__func__, __LINE__);
                     break;
             }
 
             /* Last parameter is not a filename */
             if (Param == argc - 1) {
-                usage();
+                usage(__func__, __LINE__);
             }
 
-            // fprintf(stderr,"Param: %d, option: %c\n",Param,c);
+            // fprintf(fp,"Param: %d, option: %c\n", Param, c);
 
             /* if (Param + i) < (argc -1) */
             if (Param < argc - 1 - i) {
                 Param += i;
             } else {
-                usage();
+                // fprintf(fp,"Param: %d, argc: %d, i: %d\n", Param, argc, i);
+                usage(__func__, __LINE__);
             }
         } else {
             break;
@@ -545,7 +553,7 @@ bool floor_address(void)
         /* Discard if lower than floor_address */
         if (Phys_Addr < (Floor_Address - Starting_Address)) {
             if (Verbose_Flag) {
-                fprintf(stderr, "Discard physical address less than %08X\n",
+                fprintf(fp, "Discard physical address less than %08X\n",
                     Floor_Address - Starting_Address);
             }
             flag = false;
@@ -563,7 +571,7 @@ bool ceiling_address(unsigned int temp)
         /* Discard if higher than ceiling_address */
         if (temp > (Ceiling_Address + Starting_Address)) {
             if (Verbose_Flag) {
-                fprintf(stderr, "Discard physical address more than %08X\n",
+                fprintf(fp, "Discard physical address more than %08X\n",
                     Ceiling_Address + Starting_Address);
             }
             flag = false;

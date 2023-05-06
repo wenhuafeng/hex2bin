@@ -12,13 +12,14 @@
 enum Crc {
     CHK8_SUM = 0,
     CHK16,
+    CHK16_8,
+    CHK32,
     CRC8,
     CRC16,
     CRC32,
-    CHK16_8
 };
 
-#define LAST_CHECK_METHOD CHK16_8
+#define LAST_CHECK_METHOD CRC32
 
 static enum Crc Cks_Type = CHK8_SUM;
 static unsigned int Cks_Start = 0;
@@ -48,7 +49,7 @@ void *NoFailMalloc(size_t size)
     void *result;
 
     if ((result = malloc(size)) == NULL) {
-        fprintf(stderr, "Can't allocate memory.\n");
+        fprintf(fp, "Can't allocate memory.\n");
         exit(1);
     }
 
@@ -65,7 +66,7 @@ int GetHex(const char *str)
     if (result == 1) {
         return value;
     } else {
-        fprintf(stderr, "GetHex: some error occurred when parsing options.\n");
+        fprintf(fp, "GetHex: some error occurred when parsing options.\n");
         exit(1);
     }
 }
@@ -81,7 +82,7 @@ static int GetBin(const char *str)
     if (result == 1) {
         return value & 1;
     } else {
-        fprintf(stderr, "GetBin: some error occurred when parsing options.\n");
+        fprintf(fp, "GetBin: some error occurred when parsing options.\n");
         exit(1);
     }
 }
@@ -120,9 +121,9 @@ static void Checksum8(uint8_t *memory_block)
         wCKS += memory_block[i - Lowest_Address];
     }
 
-    fprintf(stdout, "8-bit checksum = %02X\n", wCKS & 0xff);
+    fprintf(fp, "8-bit checksum = 0x%02X\n", wCKS & 0xff);
     memory_block[Cks_Addr - Lowest_Address] = wCKS;
-    fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, wCKS);
+    fprintf(fp, "checksum8 Addr 0x%08X set to 0x%02X\n", Cks_Addr, wCKS);
 }
 
 static void Checksum16(uint8_t *memory_block)
@@ -141,9 +142,9 @@ static void Checksum16(uint8_t *memory_block)
             wCKS += w;
         }
     }
-    fprintf(stdout, "16-bit checksum = %04X\n", wCKS);
+    fprintf(fp, "16-bit checksum = 0x%04X\n", wCKS);
     WriteMemBlock16(memory_block, wCKS);
-    fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, wCKS);
+    fprintf(fp, "checksum16 Addr 0x%08X set to 0x%04X\n", Cks_Addr, wCKS);
 }
 
 static void Checksum16_8(uint8_t *memory_block)
@@ -154,9 +155,22 @@ static void Checksum16_8(uint8_t *memory_block)
         wCKS += memory_block[i - Lowest_Address];
     }
 
-    fprintf(stdout, "16-bit checksum = %04X\n", wCKS);
+    fprintf(fp, "16-bit checksum = 0x%04X\n", wCKS);
     WriteMemBlock16(memory_block, wCKS);
-    fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, wCKS);
+    fprintf(fp, "checksum 16_8 Addr 0x%08X set to 0x%04X\n", Cks_Addr, wCKS);
+}
+
+static void Checksum32(uint8_t *memory_block)
+{
+    uint32_t wCKS = 0;
+
+    for (unsigned int i = Cks_Start; i <= Cks_End; i++) {
+        wCKS += memory_block[i - Lowest_Address];
+    }
+
+    fprintf(fp, "32-bit checksum = 0x%08X\n", wCKS);
+    WriteMemBlock32(memory_block, wCKS);
+    fprintf(fp, "checksum 16_8 Addr 0x%08X set to 0x%04X\n", Cks_Addr, wCKS);
 }
 
 static void Crc8(uint8_t *memory_block)
@@ -179,7 +193,7 @@ static void Crc8(uint8_t *memory_block)
 
     crc8 = (crc8 ^ Crc_XorOut) & 0xff;
     memory_block[Cks_Addr - Lowest_Address] = crc8;
-    fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, crc8);
+    fprintf(fp, "crc8 Addr 0x%08X set to 0x%02X\n", Cks_Addr, crc8);
 
     if (crc_table != NULL) {
         free(crc_table);
@@ -211,7 +225,7 @@ static void Crc16(uint8_t *memory_block)
 
     crc16 = (crc16 ^ Crc_XorOut) & 0xffff;
     WriteMemBlock16(memory_block, crc16);
-    fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, crc16);
+    fprintf(fp, "crc16 Addr 0x%08X set to 0x%04X\n", Cks_Addr, crc16);
 
     if (crc_table != NULL) {
         free(crc_table);
@@ -242,7 +256,7 @@ static void Crc32(uint8_t *memory_block)
 
     crc32 ^= Crc_XorOut;
     WriteMemBlock32(memory_block, crc32);
-    fprintf(stdout, "Addr %08X set to %08X\n", Cks_Addr, crc32);
+    fprintf(fp, "crc32 Addr 0x%08X set to 0x%08X\n", Cks_Addr, crc32);
 
     if (crc_table != NULL) {
         free(crc_table);
@@ -253,6 +267,7 @@ static struct ChecksumProcess ChecksumProcessTable[] = {
     { CHK8_SUM, Checksum8 },
     { CHK16, Checksum16 },
     { CHK16_8, Checksum16_8 },
+    { CHK32, Checksum32 },
     { CRC8, Crc8 },
     { CRC16, Crc16 },
     { CRC32, Crc32 },
@@ -286,7 +301,7 @@ void CrcParamsCheck(void)
         case CRC32:
             break;
         default:
-            fprintf(stderr, "See file CRC list.txt for parameters\n");
+            fprintf(fp, "See file CRC list.txt for parameters\n");
             exit(1);
     }
 }
@@ -298,15 +313,15 @@ void WriteMemory(uint8_t *memory_block)
             switch (Cks_Type) {
                 case 0:
                     memory_block[Cks_Addr - Lowest_Address] = Cks_Value;
-                    fprintf(stdout, "Addr %08X set to %02X\n", Cks_Addr, Cks_Value);
+                    fprintf(fp, "Addr 0x%08X set to 0x%02X\n", Cks_Addr, Cks_Value);
                     break;
                 case 1:
                     WriteMemBlock16(memory_block, Cks_Value);
-                    fprintf(stdout, "Addr %08X set to %04X\n", Cks_Addr, Cks_Value);
+                    fprintf(fp, "Addr 0x%08X set to 0x%04X\n", Cks_Addr, Cks_Value);
                     break;
                 case 2:
                     WriteMemBlock32(memory_block, Cks_Value);
-                    fprintf(stdout, "Addr %08X set to %08X\n", Cks_Addr, Cks_Value);
+                    fprintf(fp, "Addr 0x%08X set to 0x%08X\n", Cks_Addr, Cks_Value);
                     break;
                 default:
                     break;
@@ -320,11 +335,11 @@ void WriteMemory(uint8_t *memory_block)
             /* checksum range MUST BE in the array bounds */
 
             if (Cks_Start < Lowest_Address) {
-                fprintf(stdout, "Modifying range start from %X to %X\n", Cks_Start, Lowest_Address);
+                fprintf(fp, "Modifying range start from %X to %X\n", Cks_Start, Lowest_Address);
                 Cks_Start = Lowest_Address;
             }
             if (Cks_End > Highest_Address) {
-                fprintf(stdout, "Modifying range end from %X to %X\n", Cks_End, Highest_Address);
+                fprintf(fp, "Modifying range end from %X to %X\n", Cks_End, Highest_Address);
                 Cks_End = Highest_Address;
             }
 
@@ -332,7 +347,7 @@ void WriteMemory(uint8_t *memory_block)
         }
     } else {
         if (Force_Value || Cks_Addr_set) {
-            fprintf(stderr, "Force/Check address outside of memory range\n");
+            fprintf(fp, "Force/Check address outside of memory range\n");
         }
     }
 }
@@ -359,7 +374,7 @@ void Para_k(const char *str)
 {
     Cks_Type = GetHex(str);
     if (Cks_Type > LAST_CHECK_METHOD) {
-        usage();
+        usage(__func__, __LINE__);
     }
 }
 
@@ -382,7 +397,7 @@ static bool GetBoolean(const char *str)
     if ((result == 1) && ((temp == 't') || (temp == 'f'))) {
         return (temp == 't');
     } else {
-        fprintf(stderr, "GetBoolean: some error occurred when parsing options.\n");
+        fprintf(fp, "GetBoolean: some error occurred when parsing options.\n");
         exit(1);
     }
 }
