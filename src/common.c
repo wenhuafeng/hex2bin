@@ -51,45 +51,45 @@
 #define _IS_OPTION_(x) ((x) == '-')
 #endif
 
-static char Extension[MAX_EXTENSION_SIZE]; /* filename extension for output files */
+// static char extension[MAX_EXTENSION_SIZE]; /* filename extension for output files */
 
-static FILE *Filin;  /* input files */
-static FILE *Filout; /* output files */
+static FILE *file_in;  /* input files */
+static FILE *file_out; /* output files */
 
 #ifdef USE_FILE_BUFFERS
 char *FilinBuf;  /* text buffer for file input */
 char *FiloutBuf; /* text buffer for file output */
 #endif
 
-static int Pad_Byte = 0xFF;
+static int pad_byte = 0xFF;
 
-static unsigned int Starting_Address;
-static unsigned int Max_Length = 0;
-static unsigned int Minimum_Block_Size = 0x1000; // 4096 byte
-static unsigned int Floor_Address = 0x0;
-static unsigned int Ceiling_Address = 0xFFFFFFFF;
-static bool Minimum_Block_Size_Setted = false;
-static bool Starting_Address_Setted = false;
-static bool Floor_Address_Setted = false;
-static bool Ceiling_Address_Setted = false;
-static bool Max_Length_Setted = false;
-static bool Swap_Wordwise = false;
-static bool Address_Alignment_Word = false;
-static bool Batch_Mode = false;
+static uint32_t starting_address;
+static uint32_t max_length = 0;
+static uint32_t minimum_block_size = 0x1000; // 4096 byte
+static uint32_t floor_address = 0x00;
+static uint32_t ceiling_address = 0xFFFFFFFF;
+static bool minimum_block_size_setted = false;
+static bool starting_address_setted = false;
+static bool floor_address_setted = false;
+static bool ceiling_address_setted = false;
+static bool max_length_setted = false;
+static bool swap_wordwise = false;
+static bool address_alignment_word = false;
+static bool batch_mode = false;
 
-static bool Enable_Checksum_Error = false;
-static bool Status_Checksum_Error = false;
+static bool enable_checksum_error = false;
+static bool status_checksum_error = false;
 
-bool Verbose_Flag = false;
+bool verbose_flag = false;
 
 /* This will hold binary codes translated from hex file. */
-unsigned int Lowest_Address;
-unsigned int Highest_Address;
-unsigned int Phys_Addr;
+uint32_t g_lowest_address;
+uint32_t g_highest_address;
+uint32_t g_phys_addr;
 FILE *fp = NULL;
 
 /* procedure USAGE */
-void usage(const char *func, unsigned int line)
+void usage(const char *func, uint32_t line)
 {
     fprintf(fp,
         "\n"
@@ -128,7 +128,7 @@ void usage(const char *func, unsigned int line)
         "  -T [address]  Ceiling address in hex (hex2bin only)\n"
         "  -v            Verbose messages for debugging purposes\n"
         "  -w            Swap wordwise (low <-> high)\n\n",
-        Pgm_Name, func, line, Pad_Byte);
+        program_name, func, line, pad_byte);
     exit(1);
 }
 
@@ -145,17 +145,17 @@ static void DisplayCheckMethods(void)
 }
 
 /* Open the input file, with error checking */
-bool NoFailOpenInputFile(char *Flnm)
+bool NoFailOpenInputFile(char *file_name)
 {
-    Filin = fopen(Flnm, "r");
-    if (Filin == NULL) {
-        if (Batch_Mode) {
-            fprintf(fp, "Input file %s cannot be opened.\n", Flnm);
+    file_in = fopen(file_name, "r");
+    if (file_in == NULL) {
+        if (batch_mode) {
+            fprintf(fp, "Input file %s cannot be opened.\n", file_name);
             exit(1);
         } else {
-            fprintf(fp, "Input file %s cannot be opened. Enter new filename: ", Flnm);
-            if (Flnm[strlen(Flnm) - 1] == '\n') {
-                Flnm[strlen(Flnm) - 1] = '\0';
+            fprintf(fp, "Input file %s cannot be opened. Enter new filename: ", file_name);
+            if (file_name[strlen(file_name) - 1] == '\n') {
+                file_name[strlen(file_name) - 1] = '\0';
             }
         }
         return false;
@@ -163,41 +163,41 @@ bool NoFailOpenInputFile(char *Flnm)
 
 #ifdef USE_FILE_BUFFERS
     FilinBuf = (char *)NoFailMalloc(BUFFSZ);
-    setvbuf(Filin, FilinBuf, _IOFBF, BUFFSZ);
+    setvbuf(file_in, FilinBuf, _IOFBF, BUFFSZ);
 #endif
 
     return true;
 }
 
-void NoFailCloseInputFile(char *Flnm)
+void NoFailCloseInputFile(char *file_name)
 {
-    fclose(Filin);
+    fclose(file_in);
 }
 
 /* Open the output file, with error checking */
-void NoFailOpenOutputFile(char *Flnm)
+void NoFailOpenOutputFile(char *file_name)
 {
-    while ((Filout = fopen(Flnm, "wb")) == NULL) {
-        if (Batch_Mode) {
-            fprintf(fp, "Output file %s cannot be opened.\n", Flnm);
+    while ((file_out = fopen(file_name, "wb")) == NULL) {
+        if (batch_mode) {
+            fprintf(fp, "Output file %s cannot be opened.\n", file_name);
             exit(1);
         } else {
             /* Failure to open the output file may be
              simply due to an insufficient permission setting. */
-            fprintf(fp, "Output file %s cannot be opened. Enter new file name: ", Flnm);
-            if (Flnm[strlen(Flnm) - 1] == '\n') {
-                Flnm[strlen(Flnm) - 1] = '\0';
+            fprintf(fp, "Output file %s cannot be opened. Enter new file name: ", file_name);
+            if (file_name[strlen(file_name) - 1] == '\n') {
+                file_name[strlen(file_name) - 1] = '\0';
             }
         }
     }
 
 #ifdef USE_FILE_BUFFERS
     FiloutBuf = (char *)NoFailMalloc(BUFFSZ);
-    setvbuf(Filout, FiloutBuf, _IOFBF, BUFFSZ);
+    setvbuf(file_out, FiloutBuf, _IOFBF, BUFFSZ);
 #endif
 } /* procedure OPENFILOUT */
 
-void NoFailCloseOutputFile(char *Flnm)
+void NoFailCloseOutputFile(char *file_name)
 {
     //fclose(fileOut);
 }
@@ -216,7 +216,7 @@ void GetLine(char *str, FILE *in)
 static int GetDec(const char *str)
 {
     int result;
-    unsigned int value;
+    uint32_t value;
 
     result = sscanf(str, "%u", &value);
 
@@ -249,67 +249,67 @@ static void GetExtension(const char *str, char *ext)
 }
 
 /* Adds an extension to a file name */
-void PutExtension(char *Flnm, char *extension)
+void PutExtension(char *file_name, char *extension)
 {
-    char *Period; /* location of period in file name */
+    char *period; /* location of period in file name */
 
     /* This assumes DOS like file names */
     /* Don't use strchr(): consider the following filename:
      ../my.dir/file.hex
     */
-    if ((Period = strrchr(Flnm, '.')) != NULL) {
-        *(Period) = '\0';
-        if (strcmp(extension, Period + 1) == 0) {
-            fprintf(fp, "Input and output filenames (%s) are the same.\n", Flnm);
+    if ((period = strrchr(file_name, '.')) != NULL) {
+        *(period) = '\0';
+        if (strcmp(extension, period + 1) == 0) {
+            fprintf(fp, "Input and output filenames (%s) are the same.\n", file_name);
             exit(1);
         }
     }
-    strcat(Flnm, ".");
-    strcat(Flnm, extension);
+    strcat(file_name, ".");
+    strcat(file_name, extension);
 }
 
 /* Check if are set Floor and Ceiling address and range is coherent */
 void VerifyRangeFloorCeil(void)
 {
-    if (Floor_Address_Setted && Ceiling_Address_Setted && (Floor_Address >= Ceiling_Address)) {
-        fprintf(fp, "Floor address %08X higher than Ceiling address %08X\n", Floor_Address, Ceiling_Address);
+    if (floor_address_setted && ceiling_address_setted && (floor_address >= ceiling_address)) {
+        fprintf(fp, "Floor address %08X higher than Ceiling address %08X\n", floor_address, ceiling_address);
         exit(1);
     }
 }
 
 void Allocate_Memory_And_Rewind(uint8_t **memory_block)
 {
-    if (Starting_Address_Setted == true) {
-        Lowest_Address = Starting_Address;
+    if (starting_address_setted == true) {
+        g_lowest_address = starting_address;
     } else {
-        Starting_Address = Lowest_Address;
+        starting_address = g_lowest_address;
     }
 
-    if (Max_Length_Setted == false) {
-        Max_Length = Highest_Address - Lowest_Address + 1;
+    if (max_length_setted == false) {
+        max_length = g_highest_address - g_lowest_address + 1;
     } else {
-        Highest_Address = Lowest_Address + Max_Length - 1;
+        g_highest_address = g_lowest_address + max_length - 1;
     }
 
     fprintf(fp, "Allocate_Memory_and_Rewind:\n");
-    fprintf(fp, "Lowest address:   = 0x%08X\n", Lowest_Address);
-    fprintf(fp, "Highest address:  = 0x%08X\n", Highest_Address);
-    fprintf(fp, "Starting address: = 0x%08X\n", Starting_Address);
-    fprintf(fp, "Max Length:       = 0x%u\n\n", Max_Length);
+    fprintf(fp, "Lowest address:   = 0x%08X\n", g_lowest_address);
+    fprintf(fp, "Highest address:  = 0x%08X\n", g_highest_address);
+    fprintf(fp, "Starting address: = 0x%08X\n", starting_address);
+    fprintf(fp, "Max Length:       = 0x%u\n\n", max_length);
 
     /* Now that we know the buffer size, we can allocate it. */
     /* allocate a buffer */
-    *memory_block = (uint8_t *)NoFailMalloc(Max_Length);
+    *memory_block = (uint8_t *)NoFailMalloc(max_length);
 
     /* For EPROM or FLASH memory types, fill unused bytes with FF or the value specified by the p option */
-    memset(*memory_block, Pad_Byte, Max_Length);
+    memset(*memory_block, pad_byte, max_length);
 
-    rewind(Filin);
+    rewind(file_in);
 }
 
-char *ReadDataBytes(char *p, uint8_t *memory_block, uint8_t *cs, uint16_t record_nb, unsigned int nb_bytes)
+char *ReadDataBytes(char *p, uint8_t *memory_block, uint8_t *cs, uint16_t record_nb, uint32_t nb_bytes)
 {
-    unsigned int i, temp2;
+    uint32_t i, temp2;
     int result;
 
     /* Read the Data bytes. */
@@ -324,16 +324,16 @@ char *ReadDataBytes(char *p, uint8_t *memory_block, uint8_t *cs, uint16_t record
         p += 2;
 
         /* Check that the physical address stays in the buffer's range. */
-        if (Phys_Addr < Max_Length) {
+        if (g_phys_addr < max_length) {
             /* Overlapping record will erase the pad bytes */
-            if (Swap_Wordwise) {
-                if (memory_block[Phys_Addr ^ 1] != Pad_Byte)
+            if (swap_wordwise) {
+                if (memory_block[g_phys_addr ^ 1] != pad_byte)
                     fprintf(fp, "Overlapped record detected\n");
-                memory_block[Phys_Addr++ ^ 1] = temp2;
+                memory_block[g_phys_addr++ ^ 1] = temp2;
             } else {
-                if (memory_block[Phys_Addr] != Pad_Byte)
+                if (memory_block[g_phys_addr] != pad_byte)
                     fprintf(fp, "Overlapped record detected\n");
-                memory_block[Phys_Addr++] = temp2;
+                memory_block[g_phys_addr++] = temp2;
             }
 
             *cs = (*cs + temp2) & 0xFF;
@@ -345,33 +345,33 @@ char *ReadDataBytes(char *p, uint8_t *memory_block, uint8_t *cs, uint16_t record
 
 void WriteOutFile(uint8_t **memory_block)
 {
-    int Module;
+    int module;
     uint8_t *memory_block_new = NULL;
 
     /* write binary file */
-    fwrite(*memory_block, Max_Length, 1, Filout);
+    fwrite(*memory_block, max_length, 1, file_out);
     free(*memory_block);
 
     // minimum_block_size is set; the memory buffer is multiple of this?
-    if (Minimum_Block_Size_Setted == false) {
+    if (minimum_block_size_setted == false) {
         return;
     }
 
-    Module = Max_Length % Minimum_Block_Size;
-    if (Module) {
-        Module = Minimum_Block_Size - Module;
-        memory_block_new = (uint8_t *)NoFailMalloc(Module);
-        memset(memory_block_new, Pad_Byte, Module);
-        fwrite(memory_block_new, Module, 1, Filout);
+    module = max_length % minimum_block_size;
+    if (module) {
+        module = minimum_block_size - module;
+        memory_block_new = (uint8_t *)NoFailMalloc(module);
+        memset(memory_block_new, pad_byte, module);
+        fwrite(memory_block_new, module, 1, file_out);
         free(memory_block_new);
-        if (Max_Length_Setted == true) {
+        if (max_length_setted == true) {
             fprintf(fp, "Attention Max Length changed by Minimum Block Size\n");
         }
         // extended
-        Max_Length += Module;
-        Highest_Address += Module;
-        fprintf(fp, "Extended\nHighest address: %08X\n", Highest_Address);
-        fprintf(fp, "Max Length: %u\n\n", Max_Length);
+        max_length += module;
+        g_highest_address += module;
+        fprintf(fp, "Extended\nHighest address: %08X\n", g_highest_address);
+        fprintf(fp, "Max Length: %u\n\n", max_length);
     }
 }
 
@@ -384,16 +384,16 @@ void WriteOutFile(uint8_t **memory_block)
  */
 void ParseOptions(int argc, char *argv[])
 {
-    int Param;
+    int param;
     char *p;
 
-    Starting_Address = 0;
+    starting_address = 0;
 
-    for (Param = 1; Param < argc; Param++) {
+    for (param = 1; param < argc; param++) {
         int i = 0;
         char c;
 
-        p = argv[Param];
+        p = argv[param];
         c = *(p + 1); /* Get option character */
 
         if (_IS_OPTION_(*p)) {
@@ -404,87 +404,87 @@ void ParseOptions(int argc, char *argv[])
 
             switch (c) {
                 case 'a':
-                    Address_Alignment_Word = true;
+                    address_alignment_word = true;
                     i = 0;
                     break;
                 case 'b':
-                    Batch_Mode = true;
+                    batch_mode = true;
                     i = 0;
                     break;
                 case 'c':
-                    Enable_Checksum_Error = true;
+                    enable_checksum_error = true;
                     i = 0;
                     break;
                 case 'd':
                     DisplayCheckMethods();
                 case 'e':
-                    GetExtension(argv[Param + 1], Extension);
-                    i = 1; /* add 1 to Param */
+                    // GetExtension(argv[param + 1], extension);
+                    i = 1; /* add 1 to param */
                     break;
                 case 'E':
-                    Para_E(argv[Param + 1]);
-                    i = 1; /* add 1 to Param */
+                    Para_E(argv[param + 1]);
+                    i = 1; /* add 1 to param */
                     break;
                 case 'f':
-                    Para_f(argv[Param + 1]);
-                    i = 1; /* add 1 to Param */
+                    Para_f(argv[param + 1]);
+                    i = 1; /* add 1 to param */
                     break;
                 case 'F':
-                    Para_F(argv[Param + 1], argv[Param + 2]);
-                    i = 2; /* add 2 to Param */
+                    Para_F(argv[param + 1], argv[param + 2]);
+                    i = 2; /* add 2 to param */
                     break;
                 case 'k':
-                    Para_k(argv[Param + 1]);
-                    i = 1; /* add 1 to Param */
+                    Para_k(argv[param + 1]);
+                    i = 1; /* add 1 to param */
                     break;
                 case 'l':
-                    Max_Length = GetHex(argv[Param + 1]);
-                    if (Max_Length > 0x800000) {
-                        fprintf(fp, "Max_Length = %u\n", Max_Length);
+                    max_length = GetHex(argv[param + 1]);
+                    if (max_length > 0x800000) {
+                        fprintf(fp, "max_length = %u\n", max_length);
                         exit(1);
                     }
-                    Max_Length_Setted = true;
-                    i = 1; /* add 1 to Param */
+                    max_length_setted = true;
+                    i = 1; /* add 1 to param */
                     break;
                 case 'm':
-                    Minimum_Block_Size = GetHex(argv[Param + 1]);
-                    Minimum_Block_Size_Setted = true;
-                    i = 1; /* add 1 to Param */
+                    minimum_block_size = GetHex(argv[param + 1]);
+                    minimum_block_size_setted = true;
+                    i = 1; /* add 1 to param */
                     break;
                 case 'p':
-                    Pad_Byte = GetHex(argv[Param + 1]);
-                    i = 1; /* add 1 to Param */
+                    pad_byte = GetHex(argv[param + 1]);
+                    i = 1; /* add 1 to param */
                     break;
                 case 'r':
-                    Para_r(argv[Param + 1], argv[Param + 2]);
-                    i = 2; /* add 2 to Param */
+                    Para_r(argv[param + 1], argv[param + 2]);
+                    i = 2; /* add 2 to param */
                     break;
                 case 's':
-                    Starting_Address = GetHex(argv[Param + 1]);
-                    Starting_Address_Setted = true;
-                    i = 1; /* add 1 to Param */
+                    starting_address = GetHex(argv[param + 1]);
+                    starting_address_setted = true;
+                    i = 1; /* add 1 to param */
                     break;
                 case 'v':
-                    Verbose_Flag = true;
+                    verbose_flag = true;
                     i = 0;
                     break;
                 case 't':
-                    Floor_Address = GetHex(argv[Param + 1]);
-                    Floor_Address_Setted = true;
-                    i = 1; /* add 1 to Param */
+                    floor_address = GetHex(argv[param + 1]);
+                    floor_address_setted = true;
+                    i = 1; /* add 1 to param */
                     break;
                 case 'T':
-                    Ceiling_Address = GetHex(argv[Param + 1]);
-                    Ceiling_Address_Setted = true;
-                    i = 1; /* add 1 to Param */
+                    ceiling_address = GetHex(argv[param + 1]);
+                    ceiling_address_setted = true;
+                    i = 1; /* add 1 to param */
                     break;
                 case 'w':
-                    Swap_Wordwise = true;
+                    swap_wordwise = true;
                     i = 0;
                     break;
                 case 'C':
-                    Para_C(argv[Param + 1], argv[Param + 2], argv[Param + 3], argv[Param + 4], argv[Param + 5]);
-                    i = 5; /* add 5 to Param */
+                    Para_C(argv[param + 1], argv[param + 2], argv[param + 3], argv[param + 4], argv[param + 5]);
+                    i = 5; /* add 5 to param */
                     break;
 
                 case '?':
@@ -495,66 +495,66 @@ void ParseOptions(int argc, char *argv[])
             }
 
             /* Last parameter is not a filename */
-            if (Param == argc - 1) {
+            if (param == argc - 1) {
                 usage(__func__, __LINE__);
             }
 
-            // fprintf(fp,"Param: %d, option: %c\n", Param, c);
+            // fprintf(fp,"param: %d, option: %c\n", param, c);
 
-            /* if (Param + i) < (argc -1) */
-            if (Param < argc - 1 - i) {
-                Param += i;
+            /* if (param + i) < (argc -1) */
+            if (param < argc - 1 - i) {
+                param += i;
             } else {
-                // fprintf(fp,"Param: %d, argc: %d, i: %d\n", Param, argc, i);
+                // fprintf(fp,"param: %d, argc: %d, i: %d\n", param, argc, i);
                 usage(__func__, __LINE__);
             }
         } else {
             break;
         }
         /* if option */
-    } /* for Param */
+    } /* for param */
 }
 
 FILE *GetInFile(void)
 {
-    return Filin;
+    return file_in;
 }
 
 bool GetAddressAlignmentWord(void)
 {
-    return Address_Alignment_Word;
+    return address_alignment_word;
 }
 
 bool GetStatusChecksumError(void)
 {
-    return Status_Checksum_Error;
+    return status_checksum_error;
 }
 
 void SetStatusChecksumError(bool value)
 {
-    Status_Checksum_Error = value;
+    status_checksum_error = value;
 }
 
 bool GetEnableChecksumError(void)
 {
-    return Enable_Checksum_Error;
+    return enable_checksum_error;
 }
 
 int GetPadByte(void)
 {
-    return Pad_Byte;
+    return pad_byte;
 }
 
-bool floor_address(void)
+bool check_floor_address(void)
 {
     bool flag = true;
 
-    if (Floor_Address_Setted) {
+    if (floor_address_setted) {
         /* Discard if lower than floor_address */
-        if (Phys_Addr < (Floor_Address - Starting_Address)) {
-            if (Verbose_Flag) {
+        if (g_phys_addr < (floor_address - starting_address)) {
+            if (verbose_flag) {
                 fprintf(fp, "Discard physical address less than %08X\n",
-                    Floor_Address - Starting_Address);
+                    floor_address - starting_address);
             }
             flag = false;
         }
@@ -563,16 +563,16 @@ bool floor_address(void)
     return flag;
 }
 
-bool ceiling_address(unsigned int temp)
+bool check_ceiling_address(uint32_t temp)
 {
     bool flag = true;
 
-    if (Ceiling_Address_Setted) {
+    if (ceiling_address_setted) {
         /* Discard if higher than ceiling_address */
-        if (temp > (Ceiling_Address + Starting_Address)) {
-            if (Verbose_Flag) {
+        if (temp > (ceiling_address + starting_address)) {
+            if (verbose_flag) {
                 fprintf(fp, "Discard physical address more than %08X\n",
-                    Ceiling_Address + Starting_Address);
+                    ceiling_address + starting_address);
             }
             flag = false;
         }

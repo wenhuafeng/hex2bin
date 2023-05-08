@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-//extern uint8_t *Memory_Block;
+//extern uint8_t *memory_block;
 
 extern void *NoFailMalloc(size_t size);
 extern int GetHex(const char *str);

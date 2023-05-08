@@ -56,28 +56,25 @@
 #define PROGRAM "mot2bin"
 #define VERSION "2.5"
 
-const char *Pgm_Name = PROGRAM;
+const char *program_name = PROGRAM;
 
 static void get_highest_and_lowest_addresses(char *line)
 {
-    unsigned int i;
+    uint32_t i;
     FILE *fileIn = NULL;
-    uint16_t Record_Nb = 0;
-    unsigned int Nb_Bytes = 0;
+    uint16_t recordNb = 0;
+    uint32_t nb_bytes = 0;
     int result;
-    /* cmd-line parameter # */
-    //char *p;
-
-    unsigned int temp;
-    unsigned int Type;
-    unsigned int First_Word;
+    uint32_t temp;
+    uint32_t type;
+    uint32_t first_word;
 
     /* get highest and lowest addresses so that we can allocate the right size */
     do {
         /* Read a line from input file. */
         fileIn = GetInFile();
         GetLine(line, fileIn);
-        Record_Nb++;
+        recordNb++;
 
         /* Remove carriage return/line feed at the end of line. */
         i = strlen(line);
@@ -89,58 +86,58 @@ static void get_highest_and_lowest_addresses(char *line)
 
             switch (line[1]) {
                 case '0':
-                    Nb_Bytes = 1; /* This is to fix the Highest_Address set to -1 when Nb_Bytes = 0 */
+                    nb_bytes = 1; /* This is to fix the g_highest_address set to -1 when nb_bytes = 0 */
                     break;
 
                 /* 16 bits address */
                 case '1':
-                    result = sscanf(line, "S%1x%2x%4x", &Type, &Nb_Bytes, &First_Word);
+                    result = sscanf(line, "S%1x%2x%4x", &type, &nb_bytes, &first_word);
                     if (result != 3)
-                        fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
+                        fprintf(fp, "Error in line %d of hex file\n", recordNb);
 
-                    /* Adjust Nb_Bytes for the number of data bytes */
-                    Nb_Bytes = Nb_Bytes - 3;
+                    /* Adjust nb_bytes for the number of data bytes */
+                    nb_bytes = nb_bytes - 3;
                     break;
 
                 /* 24 bits address */
                 case '2':
-                    result = sscanf(line, "S%1x%2x%6x", &Type, &Nb_Bytes, &First_Word);
+                    result = sscanf(line, "S%1x%2x%6x", &type, &nb_bytes, &first_word);
                     if (result != 3)
-                        fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
+                        fprintf(fp, "Error in line %d of hex file\n", recordNb);
 
-                    /* Adjust Nb_Bytes for the number of data bytes */
-                    Nb_Bytes = Nb_Bytes - 4;
+                    /* Adjust nb_bytes for the number of data bytes */
+                    nb_bytes = nb_bytes - 4;
                     break;
 
                 /* 32 bits address */
                 case '3':
-                    result = sscanf(line, "S%1x%2x%8x", &Type, &Nb_Bytes, &First_Word);
+                    result = sscanf(line, "S%1x%2x%8x", &type, &nb_bytes, &first_word);
                     if (result != 3)
-                        fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
+                        fprintf(fp, "Error in line %d of hex file\n", recordNb);
 
-                    /* Adjust Nb_Bytes for the number of data bytes */
-                    Nb_Bytes = Nb_Bytes - 5;
+                    /* Adjust nb_bytes for the number of data bytes */
+                    nb_bytes = nb_bytes - 5;
                     break;
             }
 
-            Phys_Addr = First_Word;
+            g_phys_addr = first_word;
 
             /* Set the lowest address as base pointer. */
-            if (Phys_Addr < Lowest_Address) {
-                Lowest_Address = Phys_Addr;
+            if (g_phys_addr < g_lowest_address) {
+                g_lowest_address = g_phys_addr;
             }
 
             /* Same for the top address. */
-            temp = Phys_Addr + Nb_Bytes - 1;
+            temp = g_phys_addr + nb_bytes - 1;
 
-            if (temp > Highest_Address) {
-                Highest_Address = temp;
+            if (temp > g_highest_address) {
+                g_highest_address = temp;
             }
         }
     } while (!feof(fileIn));
 }
 
-static void verify_checksum(unsigned int record_checksum, uint8_t cs, uint16_t record_nb)
+static void verify_checksum(uint32_t record_checksum, uint8_t cs, uint16_t record_nb)
 {
     /* Verify checksum value. */
     if (((record_checksum + cs) != 0xFF) && GetEnableChecksumError()) {
@@ -153,18 +150,18 @@ static void read_file_process_lines(uint8_t *memory_block, char *line)
 {
     int i;
     FILE *fileIn = NULL;
-    uint16_t Record_Nb = 0;
-    unsigned int Nb_Bytes = 0;
+    uint16_t recordNb = 0;
+    uint32_t nb_bytes = 0;
     int result;
 
-    unsigned int Exec_Address;
-    unsigned int Record_Count;
-    unsigned int Record_Checksum;
-    unsigned int Type;
-    unsigned int address;
-    uint8_t Checksum = 0;
+    uint32_t exec_address;
+    uint32_t record_count;
+    uint32_t record_checksum;
+    uint32_t type;
+    uint32_t address;
+    uint8_t checksum = 0;
 
-    uint8_t Data_Str[MAX_LINE_SIZE];
+    uint8_t data_str[MAX_LINE_SIZE];
     char *p;
 
     /* Read the file & process the lines. */
@@ -172,7 +169,7 @@ static void read_file_process_lines(uint8_t *memory_block, char *line)
         /* Read a line from input file. */
         fileIn = GetInFile();
         GetLine(line, fileIn);
-        Record_Nb++;
+        recordNb++;
 
         /* Remove carriage return/line feed at the end of line. */
         i = strlen(line);
@@ -186,141 +183,141 @@ static void read_file_process_lines(uint8_t *memory_block, char *line)
 
         /* Scan starting address and nb of bytes. */
         /* Look at the record type after the 'S' */
-        Type = 0;
-        p = (char *)Data_Str;
+        type = 0;
+        p = (char *)data_str;
 
         switch (line[1]) {
             case '0':
-                result = sscanf(line, "S0%2x0000484452%2x", &Nb_Bytes, &Record_Checksum);
+                result = sscanf(line, "S0%2x0000484452%2x", &nb_bytes, &record_checksum);
                 if (result != 2)
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
-                Checksum = Nb_Bytes + 0x48 + 0x44 + 0x52;
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
+                checksum = nb_bytes + 0x48 + 0x44 + 0x52;
 
-                /* Adjust Nb_Bytes for the number of data bytes */
-                Nb_Bytes = 0;
+                /* Adjust nb_bytes for the number of data bytes */
+                nb_bytes = 0;
                 break;
             /* 16 bits address */
             case '1':
-                result = sscanf(line, "S%1x%2x%4x%s", &Type, &Nb_Bytes, &address, p);
+                result = sscanf(line, "S%1x%2x%4x%s", &type, &nb_bytes, &address, p);
                 if (result != 4)
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
-                Checksum = Nb_Bytes + (address >> 8) + (address & 0xFF);
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
+                checksum = nb_bytes + (address >> 8) + (address & 0xFF);
 
-                /* Adjust Nb_Bytes for the number of data bytes */
-                Nb_Bytes = Nb_Bytes - 3;
+                /* Adjust nb_bytes for the number of data bytes */
+                nb_bytes = nb_bytes - 3;
                 break;
             /* 24 bits address */
             case '2':
-                result = sscanf(line, "S%1x%2x%6x%s", &Type, &Nb_Bytes, &address, p);
+                result = sscanf(line, "S%1x%2x%6x%s", &type, &nb_bytes, &address, p);
                 if (result != 4)
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
-                Checksum = Nb_Bytes + (address >> 16) + (address >> 8) + (address & 0xFF);
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
+                checksum = nb_bytes + (address >> 16) + (address >> 8) + (address & 0xFF);
 
-                /* Adjust Nb_Bytes for the number of data bytes */
-                Nb_Bytes = Nb_Bytes - 4;
+                /* Adjust nb_bytes for the number of data bytes */
+                nb_bytes = nb_bytes - 4;
                 break;
             /* 32 bits address */
             case '3':
-                result = sscanf(line, "S%1x%2x%8x%s", &Type, &Nb_Bytes, &address, p);
+                result = sscanf(line, "S%1x%2x%8x%s", &type, &nb_bytes, &address, p);
                 if (result != 4)
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
-                Checksum = Nb_Bytes + (address >> 24) + (address >> 16) + (address >> 8) + (address & 0xFF);
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
+                checksum = nb_bytes + (address >> 24) + (address >> 16) + (address >> 8) + (address & 0xFF);
 
-                /* Adjust Nb_Bytes for the number of data bytes */
-                Nb_Bytes = Nb_Bytes - 5;
+                /* Adjust nb_bytes for the number of data bytes */
+                nb_bytes = nb_bytes - 5;
                 break;
             case '5':
-                result = sscanf(line, "S%1x%2x%4x%2x", &Type, &Nb_Bytes, &Record_Count, &Record_Checksum);
+                result = sscanf(line, "S%1x%2x%4x%2x", &type, &nb_bytes, &record_count, &record_checksum);
                 if (result != 4)
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
-                Checksum = Nb_Bytes + (Record_Count >> 8) + (Record_Count & 0xFF);
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
+                checksum = nb_bytes + (record_count >> 8) + (record_count & 0xFF);
 
-                /* Adjust Nb_Bytes for the number of data bytes */
-                Nb_Bytes = 0;
+                /* Adjust nb_bytes for the number of data bytes */
+                nb_bytes = 0;
                 break;
             case '7':
-                result = sscanf(line, "S%1x%2x%8x%2x", &Type, &Nb_Bytes, &Exec_Address, &Record_Checksum);
+                result = sscanf(line, "S%1x%2x%8x%2x", &type, &nb_bytes, &exec_address, &record_checksum);
                 if (result != 4)
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
-                Checksum = Nb_Bytes + (Exec_Address >> 24) + (Exec_Address >> 16) + (Exec_Address >> 8) +
-                    (Exec_Address & 0xFF);
-                Nb_Bytes = 0;
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
+                checksum = nb_bytes + (exec_address >> 24) + (exec_address >> 16) + (exec_address >> 8) +
+                    (exec_address & 0xFF);
+                nb_bytes = 0;
                 break;
             case '8':
-                result = sscanf(line, "S%1x%2x%6x%2x", &Type, &Nb_Bytes, &Exec_Address, &Record_Checksum);
+                result = sscanf(line, "S%1x%2x%6x%2x", &type, &nb_bytes, &exec_address, &record_checksum);
                 if (result != 4)
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
-                Checksum = Nb_Bytes + (Exec_Address >> 16) + (Exec_Address >> 8) + (Exec_Address & 0xFF);
-                Nb_Bytes = 0;
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
+                checksum = nb_bytes + (exec_address >> 16) + (exec_address >> 8) + (exec_address & 0xFF);
+                nb_bytes = 0;
                 break;
             case '9':
-                result = sscanf(line, "S%1x%2x%4x%2x", &Type, &Nb_Bytes, &Exec_Address, &Record_Checksum);
+                result = sscanf(line, "S%1x%2x%4x%2x", &type, &nb_bytes, &exec_address, &record_checksum);
                 if (result != 4)
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
-                Checksum = Nb_Bytes + (Exec_Address >> 8) + (Exec_Address & 0xFF);
-                Nb_Bytes = 0;
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
+                checksum = nb_bytes + (exec_address >> 8) + (exec_address & 0xFF);
+                nb_bytes = 0;
                 break;
         }
 
         /* If we're reading the last record, ignore it. */
-        switch (Type) {
+        switch (type) {
             /* Data record */
             case 1:
             case 2:
             case 3:
-                if (Nb_Bytes == 0) {
+                if (nb_bytes == 0) {
                     fprintf(fp, "0 byte length Data record ignored\n");
                     break;
                 }
-                Phys_Addr = address;
+                g_phys_addr = address;
 
-                p = ReadDataBytes(p, memory_block, &Checksum, Record_Nb, Nb_Bytes);
+                p = ReadDataBytes(p, memory_block, &checksum, recordNb, nb_bytes);
 
                 /* Read the checksum value. */
-                result = sscanf(p, "%2x", &Record_Checksum);
+                result = sscanf(p, "%2x", &record_checksum);
                 if (result != 1) {
-                    fprintf(fp, "Error in line %d of hex file\n", Record_Nb);
+                    fprintf(fp, "Error in line %d of hex file\n", recordNb);
                 }
                 break;
 
             case 5:
-                fprintf(fp, "Record total: %d\n", Record_Count);
+                fprintf(fp, "Record total: %d\n", record_count);
                 break;
 
             case 7:
-                fprintf(fp, "Execution address (unused): %08X\n", Exec_Address);
+                fprintf(fp, "Execution address (unused): %08X\n", exec_address);
                 break;
 
             case 8:
-                fprintf(fp, "Execution address (unused): %06X\n", Exec_Address);
+                fprintf(fp, "Execution address (unused): %06X\n", exec_address);
                 break;
 
             case 9:
-                fprintf(fp, "Execution address (unused): %04X\n", Exec_Address);
+                fprintf(fp, "Execution address (unused): %04X\n", exec_address);
                 break;
 
             /* Ignore all other records */
             default:;
         }
 
-        Record_Checksum &= 0xFF;
+        record_checksum &= 0xFF;
 
         /* Verify checksum value. */
-        verify_checksum(Record_Checksum, Checksum, Record_Nb);
+        verify_checksum(record_checksum, checksum, recordNb);
     } while (!feof(fileIn));
 }
 
 int main(int argc, char *argv[])
 {
     /* line inputted from file */
-    char Line[MAX_LINE_SIZE];
+    char line[MAX_LINE_SIZE];
 
-    char Extension[MAX_EXTENSION_SIZE];
-    char Filename[MAX_FILE_NAME_SIZE];
-    unsigned int Records_Start;
-    uint8_t *Memory_Block = NULL;
+    char extension[MAX_EXTENSION_SIZE];
+    char file_name[MAX_FILE_NAME_SIZE];
+    uint32_t records_start;
+    uint8_t *memory_block = NULL;
 
-    fp = fopen("log.txt", "w"); // 打开文件，以追加模式写入
+    fp = fopen("log.txt", "w");
     if (fp == NULL) {
         printf("Failed to open file.\n");
         return 1;
@@ -332,22 +329,23 @@ int main(int argc, char *argv[])
         usage(__func__, __LINE__);
     }
 
-    strcpy(Extension, "bin"); /* default is for binary file extension */
+    strcpy(extension, "bin"); /* default is for binary file extension */
 
     ParseOptions(argc, argv);
 
     /* when user enters input file name */
     /* Assume last parameter is filename */
-    GetFilename(Filename, argv[argc - 1]);
+    GetFilename(file_name, argv[argc - 1]);
 
     /* Just a normal file name */
-    if (NoFailOpenInputFile(Filename) == false) {
+    if (NoFailOpenInputFile(file_name) == false) {
         return 1;
     }
-    PutExtension(Filename, Extension);
-    NoFailOpenOutputFile(Filename);
+    PutExtension(file_name, extension);
+    NoFailOpenOutputFile(file_name);
 
-    /* When the hex file is opened, the program will read it in 2 passes.
+    /*
+     * When the hex file is opened, the program will read it in 2 passes.
      * The first pass gets the highest and lowest addresses so that we can allocate the right size.
      * The second pass processes the hex data.
      *
@@ -358,21 +356,21 @@ int main(int argc, char *argv[])
      * beginning of memory. While reading each records, subsequent addresses will raise this number.
      * At the end of the input file, this value will be the highest address.
      */
-    Lowest_Address = (unsigned int)-1;
-    Highest_Address = 0;
+    g_lowest_address = (uint32_t)-1;
+    g_highest_address = 0;
 
-    get_highest_and_lowest_addresses(Line);
-    Records_Start = Lowest_Address;
-    Allocate_Memory_And_Rewind(&Memory_Block);
-    read_file_process_lines(Memory_Block, Line);
+    get_highest_and_lowest_addresses(line);
+    records_start = g_lowest_address;
+    Allocate_Memory_And_Rewind(&memory_block);
+    read_file_process_lines(memory_block, line);
 
-    fprintf(fp, "Binary file start = 0x%08X\n", Lowest_Address);
-    fprintf(fp, "Records start     = 0x%08X\n", Records_Start);
-    fprintf(fp, "Highest address   = 0x%08X\n", Highest_Address);
+    fprintf(fp, "Binary file start = 0x%08X\n", g_lowest_address);
+    fprintf(fp, "Records start     = 0x%08X\n", records_start);
+    fprintf(fp, "Highest address   = 0x%08X\n", g_highest_address);
     fprintf(fp, "Pad Byte          = 0x%X\n\n", GetPadByte());
 
-    WriteMemory(Memory_Block);
-    WriteOutFile(&Memory_Block);
+    WriteMemory(memory_block);
+    WriteOutFile(&memory_block);
 
 #ifdef USE_FILE_BUFFERS
     free(FilinBuf);
@@ -381,7 +379,7 @@ int main(int argc, char *argv[])
 
     NoFailCloseInputFile(NULL);
     NoFailCloseOutputFile(NULL);
-    fclose(fp); // 关闭文件
+    fclose(fp);
 
     if (GetStatusChecksumError() && GetEnableChecksumError()) {
         fprintf(fp, "checksum error detected.\n");
