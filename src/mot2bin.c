@@ -337,7 +337,6 @@ int main(int argc, char *argv[])
     ParseOptions(argc, argv);
 
     /* when user enters input file name */
-
     /* Assume last parameter is filename */
     GetFilename(Filename, argv[argc - 1]);
 
@@ -349,17 +348,16 @@ int main(int argc, char *argv[])
     NoFailOpenOutputFile(Filename);
 
     /* When the hex file is opened, the program will read it in 2 passes.
-    The first pass gets the highest and lowest addresses so that we can allocate
-    the right size.
-    The second pass processes the hex data. */
-
-    /* To begin, assume the lowest address is at the end of the memory.
-     While reading each records, subsequent addresses will lower this number.
-     At the end of the input file, this value will be the lowest address.
-
-     A similar assumption is made for highest address. It starts at the
-     beginning of memory. While reading each records, subsequent addresses will raise this number.
-     At the end of the input file, this value will be the highest address. */
+     * The first pass gets the highest and lowest addresses so that we can allocate the right size.
+     * The second pass processes the hex data.
+     *
+     * To begin, assume the lowest address is at the end of the memory.
+     * While reading each records, subsequent addresses will lower this number.
+     * At the end of the input file, this value will be the lowest address.
+     * A similar assumption is made for highest address. It starts at the
+     * beginning of memory. While reading each records, subsequent addresses will raise this number.
+     * At the end of the input file, this value will be the highest address.
+     */
     Lowest_Address = (unsigned int)-1;
     Highest_Address = 0;
 
