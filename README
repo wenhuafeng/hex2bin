@@ -39,14 +39,12 @@ when programming. The padding value can be changed with the -p option.
         gcc -O2 -Wall -o mot2bin.exe mot2bin.c common.c libcrc.c binary.c
 
 2. Using hex2bin
-
     hex2bin example.hex
 
     hex2bin will generate a binary file example.bin starting at the
     lowest address in the hex file.
 
 3. Binary file starting address and length
-
     If the lowest address isn't 0000, ex: 0100: (the first record begins with :nn010000xxx )
 
     there will be problems when using the binary file to program a EPROM
@@ -84,7 +82,6 @@ when programming. The padding value can be changed with the -p option.
     if so, overlaps will be reported.
 
 4. Checksum of source file
-
     By default, it ignores record checksum errors, so that someone can change
     by hand some bytes allowing quick and dirty changes.
     If you want checksum error reporting, specify the option -c.
@@ -97,10 +94,9 @@ when programming. The padding value can be changed with the -p option.
     The example file example.hex contains some records with checksum errors.
 
 5. Check value inserted inside binary file
-
     A check value can be inserted in the resulting binary file.
 
-    hex2bin -k [0-4] -r [start] [end] -f [address] -C [Poly] [Init] [RefIn] [RefOut] [XorOut]
+    hex2bin -k [0-6] -r [start] [end] -f [address] -C [Poly] [Init] [RefIn] [RefOut] [XorOut]
 
     -k  Select the check method:
         0:  Checksum  8-bit
@@ -137,7 +133,6 @@ when programming. The padding value can be changed with the -p option.
     hex2bin -k [0|1|2] -F [address] [value]
 
     -k Select the value format:
-
         0 = 8-bit
         1 = 16-bit
         2 = 32-bit
@@ -149,7 +144,6 @@ when programming. The padding value can be changed with the -p option.
         1: big
 
 7. Motorola S files
-
     mot2bin example.s19
 
     Options for mot2bin are the same as hex2bin. Executing the program
@@ -161,7 +155,6 @@ when programming. The padding value can be changed with the -p option.
     the memory available.
 
 8. Support for byte-swapped hex/S19 files
-
     -w Wordwise swap: for each pair of bytes, exchange the low and high part.
     If a checksum needs to be generated to insert in the binary file, select
     one of the 16-bit checksums.
@@ -169,14 +162,12 @@ when programming. The padding value can be changed with the -p option.
     hex2bin -w test-byte-swap.hex
 
 9. Batch file/script mode
-
     Hex2bin won't ask for replacement files if the one specified is not found.
     This is convenient in batch files, Makefiles or scripts.
 
     hex2bin -b test.hex
 
 10. Goodies
-
     Description of the file formats is included.
     Added examples files for extended addressing.
 
@@ -187,7 +178,6 @@ when programming. The padding value can be changed with the -p option.
     but it's more likely that more than one byte will be overlapped.
 
 11. Error messages
-
     "Can't allocate memory."
 
     Can't do anything in this case, so the program simply exits.
@@ -217,12 +207,9 @@ when programming. The padding value can be changed with the -p option.
 
     "Some error occurred when parsing options."
 
-
 12. History
-
-    See ChangeLog
+    See git log
 
 13. Other hex tool
-
     There is a program that supports more formats and has more features.
     See SRecord at http://srecord.sourceforge.net/
