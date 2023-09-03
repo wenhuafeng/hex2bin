@@ -83,7 +83,7 @@ cmake_hex2bin = 'build/hex2bin.exe'
 cmake_mot2bin = 'build/mot2bin.exe'
 
 BUILD_DIR       = './build'
-CMAKE_COMMAND   = 'cmake -G"MinGW Makefiles" ../'
+CMAKE_COMMAND   = 'cmake -G "Unix Makefiles" ../'
 MAKE_CLEAN      = 'make clean'
 MAKE            = 'make -j8'
 
