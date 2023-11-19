@@ -38,4 +38,4 @@ install:
 	cp hex2bin.1 $(MAN_DIR)
 
 clean:
-	rm core *.o hex2bin mot2bin
+	rm -f *.o
